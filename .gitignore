@@ -1,0 +1,53 @@
+# Build trees (Linux, Windows, Ninja, etc.)
+build*/
+build-*/
+**/CMakeFiles/
+**/CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.ninja
+
+# Objects / libs / binaries
+*.o
+*.obj
+*.a
+*.lib
+*.exp
+*.dll
+*.so
+*.dylib
+*.exe
+*.ilk
+*.pdb
+
+# Dependency / compile DB
+*.d
+compile_commands.json
+
+# Logs & runtime output
+logs/
+*.log
+
+# Local config (don’t commit machine-specific settings or secrets)
+opicochat.cfg
+opicochatserver.cfg
+
+# Patches / archives / prompts you mentioned
+fix_includes.patch
+opicochat.zip
+ogprompts
+ogprompts.txt
+
+# Backups / temp
+*.bak.*
+*.bak_*
+*~
+.DS_Store
+
+# IDE/editor
+.vscode/
+.idea/
+.vs/
+
+# CMake user-specific (keep CMakePresets.json)
+CMakeUserPresets.json
