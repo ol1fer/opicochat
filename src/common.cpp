@@ -125,7 +125,18 @@ bool recv_line(socket_t s, std::string& out, int timeout_ms, bool& disconnected)
     disconnected = false;
     std::string& buf = g_buffers[s];
 
-    fd_set rf; FD_ZERO(&rf); FD_SET(s, &rf);
+    
+    // FAST PATH: if a line is already buffered, return it immediately
+    {
+        auto pos_nl = buf.find('\n');
+        if(pos_nl != std::string::npos){
+            out = buf.substr(0, pos_nl);
+            if(!out.empty() && out.back()=='\r') out.pop_back();
+            buf.erase(0, pos_nl+1);
+            return true;
+        }
+    }
+fd_set rf; FD_ZERO(&rf); FD_SET(s, &rf);
 #ifdef _WIN32
     int nfds = (int)(s + 1);
 #else
@@ -155,7 +166,7 @@ bool recv_line(socket_t s, std::string& out, int timeout_ms, bool& disconnected)
     if (pos == std::string::npos) return false;
 
     out = buf.substr(0, pos);
-    if (!out.empty() && out.back() == '\r') out.pop_back();
+    if (!out.empty() && out.back()=='\r') out.pop_back();
     buf.erase(0, pos + 1);
     return true;
 }

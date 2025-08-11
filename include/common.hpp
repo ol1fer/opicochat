@@ -12,7 +12,7 @@
   #include <winsock2.h>
   #include <ws2tcpip.h>
   using socket_t = SOCKET;
-  inline void closesocket_cross(socket_t s){ closesocket(s);}  
+  inline void closesocket_cross(socket_t s){ closesocket(s);}
 #else
   #include <sys/types.h>
   #include <sys/socket.h>
@@ -20,7 +20,7 @@
   #include <arpa/inet.h>
   #include <unistd.h>
   using socket_t = int;
-  inline void closesocket_cross(socket_t s){ ::close(s);}  
+  inline void closesocket_cross(socket_t s){ ::close(s);}
   #define INVALID_SOCKET (-1)
   #define SOCKET_ERROR   (-1)
 #endif
@@ -50,7 +50,7 @@ void set_nonblocking(socket_t s, bool nb);
 class RingBuffer {
 public:
     explicit RingBuffer(size_t cap) : cap_(cap) {}
-    void push(const std::string& s){ std::lock_guard<std::mutex> lk(m_); if(buf_.size()==cap_) buf_.erase(buf_.begin()); buf_.push_back(s);}    
+    void push(const std::string& s){ std::lock_guard<std::mutex> lk(m_); if(buf_.size()==cap_) buf_.erase(buf_.begin()); buf_.push_back(s);}
     std::vector<std::string> snapshot() const { std::lock_guard<std::mutex> lk(m_); return buf_; }
 private:
     size_t cap_;
