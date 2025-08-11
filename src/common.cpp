@@ -1,5 +1,4 @@
 ﻿#ifdef _WIN32
-// Order matters: winsock2 before windows.h (we don't include windows.h here, but be safe)
 #include <winsock2.h>
 #include <ws2tcpip.h>  // addrinfo, getaddrinfo, IPV6_V6ONLY
 #include <direct.h>    // _mkdir

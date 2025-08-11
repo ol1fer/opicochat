@@ -1,6 +1,5 @@
 #include "config.hpp"
 #include "utils.hpp"
-
 #include <sstream>
 #include <fstream>
 #include <algorithm>

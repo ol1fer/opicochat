@@ -1,6 +1,3 @@
-// opicochat - server_main.cpp (AUTH_OK/ADMIN_OK restored, proper "user/users",
-// sticky prompt, compact /help, command logging, IP bans, /reload, /unban,
-// server sees all slash commands, online count to the newly joined user)#include <atomic>
 #include <deque>
 #include <fstream>
 #include <functional>

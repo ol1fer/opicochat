@@ -17,7 +17,7 @@ namespace {
 
 namespace proto {
 
-// --- Welcome / history -------------------------------------------------------
+// --- Welcome / history ---
 
 std::string make_welcome(const std::string& server_name, bool pass_required){
     // Keep a stable, simple format: "WELCOME <name> <0|1>"

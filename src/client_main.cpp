@@ -1,5 +1,3 @@
-// opicochat - client_main.cpp (clean, nonblocking input + proper disconnect)
-
 #include <sstream>
 #include <atomic>
 #include <chrono>

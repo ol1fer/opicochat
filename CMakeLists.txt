@@ -39,3 +39,19 @@ endif()
 
 # Install rules (optional)
 install(TARGETS opicochat_server opicochat_client RUNTIME DESTINATION bin)
+# opicochat customizations: exe names + Windows icons
+if(TARGET opicochat_client)
+  # Make the client binary name just "opicochat"
+  set_target_properties(opicochat_client PROPERTIES OUTPUT_NAME "opicochat")
+  if(WIN32)
+    target_sources(opicochat_client PRIVATE src/opicochat.rc)
+  endif()
+endif()
+
+if(TARGET opicochat_server)
+  # Ensure server binary is "opicochat_server" everywhere
+  set_target_properties(opicochat_server PROPERTIES OUTPUT_NAME "opicochat_server")
+  if(WIN32)
+    target_sources(opicochat_server PRIVATE src/opicochatserver.rc)
+  endif()
+endif()
