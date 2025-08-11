@@ -297,6 +297,9 @@ int main(int argc, char** argv){
     #endif
     ClientConfig cfg;
     {   // load config + remember flag if present
+#ifdef _WIN32
+    enable_windows_ansi();
+#endif
         std::ifstream f("opicochat.cfg");
         if(f.good()){
             std::ifstream f2("opicochat.cfg");
