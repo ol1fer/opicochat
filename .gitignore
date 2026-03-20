@@ -31,6 +31,12 @@ logs/
 # Local config (don’t commit machine-specific settings or secrets)
 opicochat.cfg
 opicochatserver.cfg
+admins.cfg
+mods.cfg
+banned.cfg
+
+# Claude Code guidance file (local dev tool, not part of the project)
+CLAUDE.md
 
 # Patches / archives / prompts you mentioned
 fix_includes.patch
