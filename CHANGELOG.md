@@ -1,5 +1,25 @@
 # changelog
 
+## v2.4
+- **windows updater** — relaunch prompt now defaults to yes (`[Y/n]`); pressing enter relaunches automatically
+
+## v2.3
+- **check for updates menu** — now shows a proper yes/no sub-menu when an update is available instead of directing to `/updateclient confirm`
+- **force reinstall in menu** — when already up to date, an options menu offers force reinstall
+- **linux relaunch loop fix** — updating via `/updateclient confirm` in a chat session no longer causes the relaunched client to spam the menu. the chat session holds the terminal in raw mode; the terminal is now reset to normal before `execl` so the new process starts cleanly
+
+## v2.2
+- **banned usernames** — new `banned_names=admin,mod` config field; comma-separated list of usernames blocked at login. `server` is always blocked separately and cannot be removed
+- **`/skick` and `/sban`** — silent kick/ban; shows as `disconnected` with no public announcement. `/sban` also adds the IP to the ban list
+- **kick/ban announcements** — `/kick` and `/ban` now broadcast a notice to all users before the connection drops
+- **disconnect messages** — all leave messages now say `disconnected`. kicked/banned users are announced separately via notices
+- **`/dm server`** — users can `/dm server <text>` to send a message to the server console
+- **server console `/dm`** — server operator can `/dm <user> <text>` to send a direct message to any connected user
+- **`/motd` persistence** — setting the motd via `/motd <text>` now saves it to `opicochatserver.cfg` so it persists across restarts
+- **motd on startup** — server prints the loaded motd on startup so you can confirm it was read from config
+- **`/reload config`** — also rebuilds the banned names set
+- **`/nick` validation** — renaming to a banned username is now blocked
+
 ## v2.1
 - **freeze fix** — added a 5s send timeout on all client sockets to prevent a slow or disconnecting client from blocking the server's select loop and freezing all other users
 - **ping on join** — server sends an initial ping immediately after a client authenticates, so `/list ping` always shows a value rather than `?`
@@ -9,7 +29,7 @@
 - **dm colors** — sender name in direct messages is now colorized using their chat color
 - **`/key add` fix** — fixed remaining references that still said `/adminkey add`
 - **settings prompt** — "admin key" prompt in server settings renamed to "admin/mod key"
-- **check for updates menu** — no longer prompts to apply inline; just reports and directs to `/updateclient confirm`
+- **check for updates menu** — reworked update flow (further improved in v2.3)
 - **batch file auto-close** — windows update batch file now closes its window automatically after completing
 
 ## v2.0
