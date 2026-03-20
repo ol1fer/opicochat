@@ -1,0 +1,87 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build
+        run: |
+          cmake --preset linux-release
+          cmake --build --preset linux-release -j
+
+      - name: package
+        run: |
+          cd build-linux
+          zip ../opicochat-linux-x64.zip opicochat opicochat_server
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: opicochat-linux-x64.zip
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build
+        run: |
+          cmake --preset windows-msvc-release
+          cmake --build --preset windows-msvc-release -j
+
+      - name: package
+        run: |
+          cd build-windows/Release
+          Compress-Archive -Path opicochat.exe, opicochat_server.exe -DestinationPath ../../opicochat-windows-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: opicochat-windows-x64.zip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j
+
+      - name: package
+        run: |
+          cd build
+          zip ../opicochat-macos-x64.zip opicochat opicochat_server
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: opicochat-macos-x64.zip
+
+  release:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            opicochat-linux-x64.zip
+            opicochat-windows-x64.zip
+            opicochat-macos-x64.zip
+          generate_release_notes: true
