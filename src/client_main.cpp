@@ -726,29 +726,57 @@ static bool run_chat(const std::string& host, uint16_t port,
         // ---- /updateclient ----
         if(input.rfind("/updateclient", 0) == 0 && (input.size() == 13 || input[13] == ' ')) {
             std::string arg = trim(input.size() > 13 ? input.substr(13) : "");
-            if(arg == "confirm") {
-                if(cli_update_url.empty()) {
-                    cli_print("  no update check done yet. run /updateclient first.");
-                } else {
-                    std::string exe = get_self_exe_path();
-                    if(exe.empty()) { cli_print("  could not determine client executable path."); continue; }
-                    std::string tmp = exe + ".update";
-#ifdef _WIN32
-                    tmp = exe + "_update.exe";
-#endif
-                    cli_print("  downloading v" + cli_update_version + "...");
-                    if(!update_download_file(cli_update_url, tmp)) {
-                        cli_print("  download failed. check curl is installed (linux/mac) or powershell is available (windows).");
-                    } else {
-                        std::string msg;
-                        if(update_apply_binary(tmp, exe, msg)) {
-                            cli_print("  " + msg);
-                        } else {
-                            cli_print("  update failed: " + msg);
-                        }
+            bool is_force   = (arg == "force");
+            bool is_confirm = (arg == "confirm");
+
+            if(is_confirm || is_force) {
+                std::string use_version = cli_update_version;
+                std::string use_url     = cli_update_url;
+                if(is_force || use_url.empty()) {
+                    if(is_confirm && use_url.empty()) {
+                        cli_print("  no update check done yet. run /updateclient first.");
+                        continue;
                     }
-                    cli_update_version.clear(); cli_update_url.clear();
+                    // fetch now
+                    cli_print("  checking for updates...");
+                    std::string json = update_http_get(GITHUB_RELEASES_API);
+                    if(json.empty()) { cli_print("  failed to reach github."); continue; }
+                    std::string tag = update_get_latest_tag(json);
+                    use_version = tag;
+                    if(!use_version.empty() && use_version[0] == 'v') use_version = use_version.substr(1);
+                    if(use_version.empty()) { cli_print("  could not parse response from github."); continue; }
+                    use_url = update_find_asset_url(json, CLIENT_UPDATE_ASSET);
+                    if(use_url.empty()) { cli_print("  no binary found for this platform."); continue; }
                 }
+                std::string exe = get_self_exe_path();
+                if(exe.empty()) { cli_print("  could not determine client executable path."); continue; }
+#ifdef _WIN32
+                std::string bat = update_write_bat(exe, false);
+                if(bat.empty()) { cli_print("  failed to write updater batch file."); continue; }
+                update_launch_file(bat);
+                cli_print("  updater launched. disconnecting...");
+                net::send_line(s, "QUIT", &cipher);
+                running = false; q_cv.notify_all();
+                closesocket_cross(s);
+                std::exit(0);
+#else
+                std::string tmp = exe + ".update";
+                cli_print("  downloading v" + use_version + "...");
+                if(!update_download_file(use_url, tmp)) {
+                    cli_print("  download failed. check curl is available."); continue;
+                }
+                std::string msg;
+                if(update_apply_binary(tmp, exe, msg)) {
+                    cli_print("  " + msg + " relaunching...");
+                    net::send_line(s, "QUIT", &cipher);
+                    closesocket_cross(s);
+                    execl(exe.c_str(), exe.c_str(), (char*)nullptr);
+                    cli_print("  execl failed — restart manually.");
+                } else {
+                    cli_print("  update failed: " + msg);
+                }
+#endif
+                cli_update_version.clear(); cli_update_url.clear();
             } else {
                 cli_print("  checking for updates...");
                 std::string json = update_http_get(GITHUB_RELEASES_API);
@@ -761,7 +789,7 @@ static bool run_chat(const std::string& host, uint16_t port,
                     if(latest.empty()) {
                         cli_print("  could not parse response from github.");
                     } else if(latest == APP_VERSION) {
-                        cli_print("  already up to date (v" + std::string(APP_VERSION) + ").");
+                        cli_print("  already up to date (v" + std::string(APP_VERSION) + "). use /updateclient force to reinstall.");
                     } else {
                         std::string url = update_find_asset_url(json, CLIENT_UPDATE_ASSET);
                         if(url.empty()) {
@@ -770,7 +798,7 @@ static bool run_chat(const std::string& host, uint16_t port,
                             cli_update_version = latest;
                             cli_update_url = url;
                             cli_print("  update available: v" + latest + " (current: v" + std::string(APP_VERSION) + ")");
-                            cli_print("  type /updateclient confirm to download and apply.");
+                            cli_print("  type /updateclient confirm to apply.");
                         }
                     }
                 }
@@ -918,6 +946,7 @@ static bool run_chat(const std::string& host, uint16_t port,
                 std::cout << "  /log on|off               - toggle client-side chat logging\n";
                 std::cout << "  /updateclient             - check for a newer client version\n";
                 std::cout << "  /updateclient confirm     - download and apply the update\n";
+                std::cout << "  /updateclient force       - force update even if already on latest\n";
                 std::cout << "  /savenick [force|new]     - save current nickname to profile\n";
                 std::cout << "  /saveserver [force|new]   - save current server to server list\n";
                 std::cout << "  /key add                  - save current admin/mod key to this server\n";
@@ -1209,21 +1238,28 @@ int main(int argc, char** argv) {
                         if(trim(ans) == "1") {
                             std::string exe = get_self_exe_path();
                             if(exe.empty()) { std::cout << "could not determine executable path.\n"; continue; }
-                            std::string tmp = exe + ".update";
 #ifdef _WIN32
-                            tmp = exe + "_update.exe";
-#endif
+                            std::string bat = update_write_bat(exe, false);
+                            if(bat.empty()) { std::cout << "failed to write updater batch file.\n"; continue; }
+                            update_launch_file(bat);
+                            std::cout << "updater launched. close the client to apply the update.\n";
+                            std::exit(0);
+#else
+                            std::string tmp = exe + ".update";
                             std::cout << "downloading v" << latest << "...\n";
                             if(!update_download_file(url, tmp)) {
                                 std::cout << "download failed.\n";
                             } else {
                                 std::string msg;
                                 if(update_apply_binary(tmp, exe, msg)) {
-                                    std::cout << msg << "\n";
+                                    std::cout << msg << " relaunching...\n";
+                                    execl(exe.c_str(), exe.c_str(), (char*)nullptr);
+                                    std::cout << "execl failed — restart manually.\n";
                                 } else {
                                     std::cout << "update failed: " << msg << "\n";
                                 }
                             }
+#endif
                         }
                     }
                 }

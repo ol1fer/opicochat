@@ -1,5 +1,13 @@
 # changelog
 
+## v1.6
+- **/updateclient force** and **/updateserver force** — skip version check and force a reinstall of the latest binary
+- **automatic windows updater** — `confirm`/`force` on windows writes a named batch file (`opicochatclientupdater.bat` / `opicochatserverupdater.bat`) and launches it automatically. the server closes itself after launching; the client disconnects and exits. the batch file waits in a loop until the exe unlocks, replaces it, then relaunches. server batch asks yes/no before relaunching; client auto-relaunches.
+- **re-usable batch files** — the batch files always pull from `releases/latest/download/` so they can be re-run any time without using the in-app command
+- **auto-relaunch on linux/macos** — after a successful update, the client replaces itself via `execl()`. the server applies atomically and prompts you to use `/restart`
+- **/restart** — new server console command (linux/macos) to relaunch the server process in-place via `execl()` after an update
+- **fixed github json parsing** — version and asset url extraction now handles any whitespace formatting in the api response, fixing the "could not parse response from github" error
+
 ## v1.5
 - **/updateserver** — server console command to check for and apply server binary updates from github
 - **/updateclient** — client-side command to check for and apply client binary updates from github

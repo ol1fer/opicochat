@@ -172,6 +172,7 @@ key fields:
 | `/log on\|off` | toggle client-side logging to a local file |
 | `/updateclient` | check github for a newer client version |
 | `/updateclient confirm` | download and apply the update |
+| `/updateclient force` | force update even if already on latest version |
 | `/savenick [force\|new]` | save current username+color to your profile |
 | `/saveserver [force\|new]` | save current server to your server list |
 | `/key add` | save your current admin/mod key to this server entry |
@@ -215,6 +216,15 @@ key fields:
 ### server console
 
 all slash commands above work from the server's stdin. a plain line (no slash) broadcasts a message as `[server]`.
+
+extra console-only commands:
+
+| command | description |
+|---|---|
+| `/updateserver` | check github for a newer server version |
+| `/updateserver confirm` | download and apply the update (linux/macos: atomic replace; windows: writes and launches `opicochatserverupdater.bat` then closes) |
+| `/updateserver force` | force update regardless of current version |
+| `/restart` | relaunch the server process in-place after an update (linux/macos only) |
 
 ---
 

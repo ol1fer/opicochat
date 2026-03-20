@@ -46,13 +46,18 @@ bool ensure_terminal_attached(int argc, char** argv);
 std::string get_self_exe_path();
 // Fetches URL as text (uses curl on Linux/mac, powershell on Windows)
 std::string update_http_get(const std::string& url);
-// Extracts "tag_name" string from GitHub releases JSON  (e.g. "v1.5")
+// Extracts "tag_name" string from GitHub releases JSON (e.g. "v1.5")
 std::string update_get_latest_tag(const std::string& json);
 // Finds browser_download_url for a named asset in GitHub releases JSON
 std::string update_find_asset_url(const std::string& json, const std::string& asset_name);
 // Downloads URL to dest_path. Returns true on success.
 bool update_download_file(const std::string& url, const std::string& dest_path);
-// Replaces exe_path with downloaded_path. On Linux/macOS uses atomic rename.
-// On Windows writes a self-deleting update.bat. Sets msg on both success and failure.
+// Replaces exe_path with downloaded_path atomically (Linux/macOS only). Sets msg.
 bool update_apply_binary(const std::string& downloaded_path,
                          const std::string& exe_path, std::string& msg);
+// Writes opicochat[client|server]updater.bat beside exe_path. Returns bat path or "".
+// The bat downloads the latest release from GitHub and replaces the binary.
+// Windows only; returns "" on other platforms.
+std::string update_write_bat(const std::string& exe_path, bool is_server);
+// Launches a file in the background (Windows: start ""). No-op on other platforms.
+void update_launch_file(const std::string& path);

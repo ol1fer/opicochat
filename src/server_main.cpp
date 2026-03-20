@@ -396,7 +396,7 @@ int main(int argc, char** argv) {
                 lines.push_back(G+"/mod add|remove|list <user>"+R);
                 lines.push_back(G+"/reload bans|admins|mods"+R);
             }
-            if(!from) lines.push_back("/say <text>  /shutdown  /status  /updateserver [confirm]");
+            if(!from) lines.push_back("/say <text>  /shutdown  /status  /updateserver [confirm|force]  /restart");
             for(auto& l : lines) srv_say(l);
             return;
         }
@@ -864,30 +864,57 @@ int main(int argc, char** argv) {
             if(slash == "/updateserver") {
                 if(from) { srv_say("this command must be run from the server console."); return; }
                 std::string arg = next();
-                if(arg == "confirm") {
-                    if(srv_update_url.empty()) {
-                        srv_say("no update check done yet. run /updateserver first."); return;
+                bool is_force = (arg == "force");
+                bool is_confirm = (arg == "confirm");
+
+                // Apply update (confirm or force)
+                if(is_confirm || is_force) {
+                    std::string use_version = srv_update_version;
+                    std::string use_url     = srv_update_url;
+                    if(is_force || is_confirm) {
+                        // force always fetches fresh; confirm uses stored state
+                        if(is_force || use_url.empty()) {
+                            if(is_confirm && use_url.empty()) {
+                                srv_say("no update check done yet. run /updateserver first."); return;
+                            }
+                            // fetch now
+                            srv_say("checking for updates...");
+                            std::string json = update_http_get(GITHUB_RELEASES_API);
+                            if(json.empty()) { srv_say("failed to reach github. check curl/powershell is available."); return; }
+                            std::string tag = update_get_latest_tag(json);
+                            use_version = tag;
+                            if(!use_version.empty() && use_version[0] == 'v') use_version = use_version.substr(1);
+                            if(use_version.empty()) { srv_say("could not parse response from github."); return; }
+                            use_url = update_find_asset_url(json, SERVER_UPDATE_ASSET);
+                            if(use_url.empty()) { srv_say("no binary found for this platform."); return; }
+                        }
                     }
                     std::string exe = get_self_exe_path();
                     if(exe.empty()) { srv_say("could not determine server executable path."); return; }
-                    std::string tmp = exe + ".update";
 #ifdef _WIN32
-                    tmp = exe + "_update.exe";
-#endif
-                    srv_say("downloading v" + srv_update_version + "...");
-                    if(!update_download_file(srv_update_url, tmp)) {
-                        srv_say("download failed. check curl/powershell is available."); return;
+                    std::string bat = update_write_bat(exe, true);
+                    if(bat.empty()) { srv_say("failed to write updater batch file."); return; }
+                    update_launch_file(bat);
+                    srv_say("updater launched. closing server now — the updater will apply v" + use_version + " once the process exits.");
+                    running = false;
+#else
+                    std::string tmp = exe + ".update";
+                    srv_say("downloading v" + use_version + "...");
+                    if(!update_download_file(use_url, tmp)) {
+                        srv_say("download failed. check curl is available."); return;
                     }
                     std::string msg;
                     if(update_apply_binary(tmp, exe, msg)) {
                         srv_say(msg);
-                        srv_say("current server will keep running. restart it to use v" + srv_update_version + ".");
+                        srv_say("use /restart to relaunch with v" + use_version + ".");
                     } else {
                         srv_say("update failed: " + msg);
                     }
+#endif
                     srv_update_version.clear(); srv_update_url.clear();
                     return;
                 }
+
                 // Check for updates
                 srv_say("checking for updates...");
                 std::string json = update_http_get(GITHUB_RELEASES_API);
@@ -897,14 +924,28 @@ int main(int argc, char** argv) {
                 if(!latest.empty() && latest[0] == 'v') latest = latest.substr(1);
                 if(latest.empty()) { srv_say("could not parse response from github."); return; }
                 if(latest == APP_VERSION) {
-                    srv_say("already up to date (v" + std::string(APP_VERSION) + ")."); return;
+                    srv_say("already up to date (v" + std::string(APP_VERSION) + "). use /updateserver force to reinstall."); return;
                 }
                 std::string url = update_find_asset_url(json, SERVER_UPDATE_ASSET);
                 if(url.empty()) { srv_say("update v" + latest + " found but no binary for this platform."); return; }
                 srv_update_version = latest;
                 srv_update_url = url;
                 srv_say("update available: v" + latest + " (current: v" + std::string(APP_VERSION) + ")");
-                srv_say("run /updateserver confirm to download and apply.");
+                srv_say("run /updateserver confirm to apply.");
+                return;
+            }
+
+            if(slash == "/restart") {
+                if(from) { srv_say("this command must be run from the server console."); return; }
+#ifdef _WIN32
+                srv_say("use the updater batch file to restart on Windows.");
+#else
+                std::string exe = get_self_exe_path();
+                if(exe.empty()) { srv_say("could not determine server executable path."); return; }
+                srv_say("restarting...");
+                execl(exe.c_str(), exe.c_str(), (char*)nullptr);
+                srv_say("execl failed — restart manually.");
+#endif
                 return;
             }
 

@@ -269,25 +269,49 @@ std::string update_http_get(const std::string& url) {
     return result;
 }
 
-std::string update_get_latest_tag(const std::string& json) {
-    const std::string key = "\"tag_name\": \"";
-    auto pos = json.find(key);
+// Robust JSON string-value extractor. Finds "key" anywhere in json (from start),
+// skips optional whitespace and ':', then returns the quoted string value.
+static std::string json_str_value(const std::string& json, const std::string& key, size_t start = 0) {
+    std::string needle = "\"" + key + "\"";
+    auto pos = json.find(needle, start);
     if(pos == std::string::npos) return "";
-    pos += key.size();
+    pos += needle.size();
+    while(pos < json.size() && (json[pos]==' '||json[pos]=='\t'||json[pos]=='\n'||json[pos]=='\r')) ++pos;
+    if(pos >= json.size() || json[pos] != ':') return "";
+    ++pos;
+    while(pos < json.size() && (json[pos]==' '||json[pos]=='\t'||json[pos]=='\n'||json[pos]=='\r')) ++pos;
+    if(pos >= json.size() || json[pos] != '"') return "";
+    ++pos;
     auto end = json.find('"', pos);
-    return end == std::string::npos ? "" : json.substr(pos, end - pos);
+    if(end == std::string::npos) return "";
+    return json.substr(pos, end - pos);
+}
+
+std::string update_get_latest_tag(const std::string& json) {
+    return json_str_value(json, "tag_name");
 }
 
 std::string update_find_asset_url(const std::string& json, const std::string& asset_name) {
-    std::string name_needle = "\"name\": \"" + asset_name + "\"";
-    auto pos = json.find(name_needle);
-    if(pos == std::string::npos) return "";
-    const std::string url_key = "\"browser_download_url\": \"";
-    auto upos = json.find(url_key, pos);
-    if(upos == std::string::npos) return "";
-    upos += url_key.size();
-    auto end = json.find('"', upos);
-    return end == std::string::npos ? "" : json.substr(upos, end - upos);
+    // Walk all "name" fields until we find asset_name, then grab browser_download_url after it.
+    const std::string name_key = "\"name\"";
+    size_t search = 0;
+    for(;;) {
+        auto kpos = json.find(name_key, search);
+        if(kpos == std::string::npos) return "";
+        // Read the value of this "name" field
+        size_t p = kpos + name_key.size();
+        while(p < json.size() && (json[p]==' '||json[p]=='\t'||json[p]=='\n'||json[p]=='\r')) ++p;
+        if(p >= json.size() || json[p] != ':') { search = kpos + 1; continue; }
+        ++p;
+        while(p < json.size() && (json[p]==' '||json[p]=='\t'||json[p]=='\n'||json[p]=='\r')) ++p;
+        if(p >= json.size() || json[p] != '"') { search = kpos + 1; continue; }
+        ++p;
+        auto end = json.find('"', p);
+        if(end == std::string::npos) return "";
+        if(json.substr(p, end - p) != asset_name) { search = kpos + 1; continue; }
+        // Found the right asset — look for browser_download_url from this position
+        return json_str_value(json, "browser_download_url", kpos);
+    }
 }
 
 bool update_download_file(const std::string& url, const std::string& dest) {
@@ -305,27 +329,82 @@ bool update_download_file(const std::string& url, const std::string& dest) {
 
 bool update_apply_binary(const std::string& downloaded, const std::string& exe_path, std::string& msg) {
 #ifdef _WIN32
-    // Can't replace a running .exe; write a self-deleting bat in the same directory
-    std::string dir;
-    auto sep = exe_path.rfind('\\');
-    if(sep != std::string::npos) dir = exe_path.substr(0, sep + 1);
-    std::string bat_path = dir + "update.bat";
-    std::ofstream f(bat_path);
-    if(!f) { msg = "failed to write update.bat in " + dir; return false; }
-    f << "@echo off\r\n";
-    f << "timeout /t 2 /nobreak >nul\r\n";
-    f << "move /y \"" << downloaded << "\" \"" << exe_path << "\"\r\n";
-    f << "del \"%~f0\"\r\n";
-    msg = "update.bat written. close this window and run update.bat to apply.";
-    return true;
+    (void)downloaded; (void)exe_path;
+    msg = "use the updater batch file on Windows.";
+    return false;
 #else
     chmod(downloaded.c_str(), 0755);
     if(rename(downloaded.c_str(), exe_path.c_str()) != 0) {
         msg = "failed to replace binary — check permissions.";
         return false;
     }
-    msg = "update applied. restart to use the new version.";
+    msg = "update applied.";
     return true;
+#endif
+}
+
+std::string update_write_bat(const std::string& exe_path, bool is_server) {
+#ifdef _WIN32
+    std::string dir;
+    auto sep = exe_path.rfind('\\');
+    if(sep != std::string::npos) dir = exe_path.substr(0, sep + 1);
+    std::string bat_name = is_server ? "opicochatserverupdater.bat" : "opicochatclientupdater.bat";
+    std::string bat_path = dir + bat_name;
+    std::string url = is_server
+        ? "https://github.com/ol1fer/opicochat/releases/latest/download/opicochat_server-windows-x64.exe"
+        : "https://github.com/ol1fer/opicochat/releases/latest/download/opicochat-windows-x64.exe";
+    std::string display = is_server ? "opicochat_server" : "opicochat";
+    std::ofstream f(bat_path);
+    if(!f) return "";
+    f << "@echo off\r\n";
+    f << "setlocal EnableDelayedExpansion\r\n";
+    f << "set \"EXE=" << exe_path << "\"\r\n";
+    f << "set \"TMP=%EXE%_update.exe\"\r\n";
+    f << "set \"URL=" << url << "\"\r\n";
+    f << "\r\n";
+    f << "echo Downloading latest " << display << "...\r\n";
+    f << "powershell -NoProfile -Command \"[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%URL%' -OutFile '%TMP%' -UseBasicParsing\" 2>nul\r\n";
+    f << "\r\n";
+    f << "if not exist \"%TMP%\" (\r\n";
+    f << "    echo Download failed. Check your internet connection.\r\n";
+    f << "    pause\r\n";
+    f << "    exit /b 1\r\n";
+    f << ")\r\n";
+    f << "\r\n";
+    f << "echo Waiting for " << display << " to close...\r\n";
+    f << ":waitloop\r\n";
+    f << "move /y \"%TMP%\" \"%EXE%\" >nul 2>&1\r\n";
+    f << "if errorlevel 1 (\r\n";
+    f << "    timeout /t 1 /nobreak >nul\r\n";
+    f << "    goto waitloop\r\n";
+    f << ")\r\n";
+    f << "\r\n";
+    f << "echo.\r\n";
+    f << "echo " << display << " has been updated successfully.\r\n";
+    if(is_server) {
+        f << "set /p \"RELAUNCH=Relaunch server now? [y/n]: \"\r\n";
+        f << "if /i \"!RELAUNCH!\"==\"y\" (\r\n";
+        f << "    start \"\" \"%EXE%\"\r\n";
+        f << ")\r\n";
+    } else {
+        f << "echo Press any key to relaunch...\r\n";
+        f << "pause >nul\r\n";
+        f << "start \"\" \"%EXE%\"\r\n";
+    }
+    f << "(goto) 2>nul & del \"%~f0\"\r\n";
+    return bat_path;
+#else
+    (void)exe_path; (void)is_server;
+    return "";
+#endif
+}
+
+void update_launch_file(const std::string& path) {
+#ifdef _WIN32
+    std::string cmd = "start \"\" \"" + path + "\"";
+    system(cmd.c_str());
+#else
+    (void)path;
 #endif
 }
 
