@@ -200,9 +200,12 @@ static std::string render_line(const std::string& l,
             if(!ignored.empty() && ignored.count(from)) return "";
             std::string ts = show_ts ? format_ts_prefix(iso) : "";
             bool outgoing = (from == my_name);
+            std::string col_from = (!fcol.empty() && fcol != "-")
+                ? (ansi_for_hex(fcol) + from + ansi_reset())
+                : from;
             std::string arrow = outgoing
-                ? (ansi_dim()  + "[dm -> "   + to   + "]" + ansi_reset())
-                : (ansi_bold() + "[dm from " + from + "]" + ansi_reset());
+                ? (ansi_dim()  + "[dm -> "   + to       + "]" + ansi_reset())
+                : (ansi_bold() + "[dm from " + col_from + "]" + ansi_reset());
             return ts + arrow + " " + dmtext;
         }
     }
@@ -217,7 +220,7 @@ static std::string render_line(const std::string& l,
     {
         std::string motd_text;
         if(proto::parse_motd(l, motd_text)) {
-            return ansi_dim() + "~ motd: " + motd_text + " ~" + ansi_reset();
+            return ansi_dim() + "~ " + motd_text + " ~" + ansi_reset();
         }
     }
 
@@ -450,14 +453,14 @@ static bool run_chat(const std::string& host, uint16_t port,
                     { std::lock_guard<std::mutex> lk(io_mtx); my_role = "admin"; my_key = key; }
                     cli_print("\033[32m  you have been granted admin!\033[0m");
                     cli_print("  admin key: " + key);
-                    cli_print("  type /adminkey add  to save it to this server entry");
+                    cli_print("  type /key add  to save it to this server entry");
                     continue;
                 }
                 if(proto::parse_mod_granted(l, key)) {
                     { std::lock_guard<std::mutex> lk(io_mtx); my_role = "mod"; my_key = key; }
                     cli_print("\033[34m  you have been granted mod!\033[0m");
                     cli_print("  mod key: " + key);
-                    cli_print("  type /adminkey add  to save it to this server entry");
+                    cli_print("  type /key add  to save it to this server entry");
                     continue;
                 }
             }
@@ -1232,35 +1235,8 @@ int main(int argc, char** argv) {
                     if(url.empty()) {
                         std::cout << "update v" << latest << " found but no binary for this platform.\n";
                     } else {
-                        std::cout << "update available: v" << latest << " (current: v" << APP_VERSION << ")\n";
-                        std::cout << "apply now? (1=yes, 0=no): ";
-                        std::string ans; std::getline(std::cin, ans);
-                        if(trim(ans) == "1") {
-                            std::string exe = get_self_exe_path();
-                            if(exe.empty()) { std::cout << "could not determine executable path.\n"; continue; }
-#ifdef _WIN32
-                            std::string bat = update_write_bat(exe, false);
-                            if(bat.empty()) { std::cout << "failed to write updater batch file.\n"; continue; }
-                            update_launch_file(bat);
-                            std::cout << "updater launched. close the client to apply the update.\n";
-                            std::exit(0);
-#else
-                            std::string tmp = exe + ".update";
-                            std::cout << "downloading v" << latest << "...\n";
-                            if(!update_download_file(url, tmp)) {
-                                std::cout << "download failed.\n";
-                            } else {
-                                std::string msg;
-                                if(update_apply_binary(tmp, exe, msg)) {
-                                    std::cout << msg << " relaunching...\n";
-                                    execl(exe.c_str(), exe.c_str(), (char*)nullptr);
-                                    std::cout << "execl failed — restart manually.\n";
-                                } else {
-                                    std::cout << "update failed: " << msg << "\n";
-                                }
-                            }
-#endif
-                        }
+                        std::cout << "update available: v" << latest << " (current: v" << APP_VERSION << ").\n";
+                        std::cout << "connect to a server and type /updateclient confirm to apply.\n";
                     }
                 }
             }
@@ -1382,7 +1358,7 @@ int main(int argc, char** argv) {
                             } else if(act == 3) {
                                 cfg.server_display_names.erase(hpk); save_cfg(cfg); std::cout << "cleared.\n";
                             } else if(act == 4) {
-                                std::cout << "admin key: "; std::string key; std::getline(std::cin, key); key = trim(key);
+                                std::cout << "admin/mod key: "; std::string key; std::getline(std::cin, key); key = trim(key);
                                 if(!key.empty()) { cfg.admin_keys[hpk] = key; save_cfg(cfg); std::cout << "saved.\n"; }
                             } else if(act == 5) {
                                 cfg.admin_keys.erase(hpk); save_cfg(cfg); std::cout << "key cleared.\n";

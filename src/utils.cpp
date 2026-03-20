@@ -391,7 +391,7 @@ std::string update_write_bat(const std::string& exe_path, bool is_server) {
         f << "pause >nul\r\n";
         f << "start \"\" \"%EXE%\"\r\n";
     }
-    f << "(goto) 2>nul & del \"%~f0\"\r\n";
+    f << "(goto) 2>nul & del \"%~f0\" & exit\r\n";
     return bat_path;
 #else
     (void)exe_path; (void)is_server;

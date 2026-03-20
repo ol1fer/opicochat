@@ -394,7 +394,7 @@ int main(int argc, char** argv) {
                 lines.push_back(G+"/motd <text>           - set motd"+R);
                 lines.push_back(G+"/admin add|remove|list <user>"+R);
                 lines.push_back(G+"/mod add|remove|list <user>"+R);
-                lines.push_back(G+"/reload bans|admins|mods"+R);
+                lines.push_back(G+"/reload bans|admins|mods|config"+R);
             }
             if(!from) lines.push_back("/say <text>  /shutdown  /status  /updateserver [confirm|force]  /restart");
             for(auto& l : lines) srv_say(l);
@@ -416,13 +416,17 @@ int main(int argc, char** argv) {
             };
             if(sub == "ping") {
                 int cnt = 0;
-                for(auto& c : clients) {
-                    if(!c.authed) continue;
-                    ++cnt;
-                    std::string ping_s = c.last_ping_ms >= 0 ? std::to_string(c.last_ping_ms)+"ms" : "?";
-                    srv_say(list_badge(c) + colorize_name(c.username, c.color_hex) + ansi_reset() + "  " + ping_s);
+                for(auto& c : clients) { if(c.authed) ++cnt; }
+                srv_say("online (" + std::to_string(cnt) + ") — ping:");
+                if(cnt == 0) {
+                    srv_say("  (none)");
+                } else {
+                    for(auto& c : clients) {
+                        if(!c.authed) continue;
+                        std::string ping_s = c.last_ping_ms >= 0 ? std::to_string(c.last_ping_ms)+"ms" : "?";
+                        srv_say("  " + list_badge(c) + colorize_name(c.username, c.color_hex) + ansi_reset() + "  " + ping_s);
+                    }
                 }
-                if(cnt == 0) srv_say("no users online.");
             } else {
                 std::string names; int cnt = 0;
                 for(auto& c : clients) {
@@ -848,7 +852,12 @@ int main(int argc, char** argv) {
             if(what == "bans")        { load_bans("banned.cfg");           srv_say("reloaded bans."); }
             else if(what == "admins") { load_staff("admins.cfg", g_admins); srv_say("reloaded admins."); }
             else if(what == "mods")   { load_staff("mods.cfg", g_mods);    srv_say("reloaded mods."); }
-            else srv_say("usage: /reload bans|admins|mods");
+            else if(what == "config") {
+                cfg = ServerConfig::load_or_create("opicochatserver.cfg");
+                server_motd = cfg.motd;
+                srv_say("reloaded config.");
+            }
+            else srv_say("usage: /reload bans|admins|mods|config");
             return;
         }
 
@@ -1166,6 +1175,14 @@ int main(int argc, char** argv) {
                       closesocket_cross(cs); goto after_accept; }
                   dq.push_back(now); }
                 {
+                    // Prevent a slow/full client buffer from blocking send() and stalling the select loop
+#ifdef _WIN32
+                    DWORD snd_tmo = 5000;
+                    setsockopt(cs, SOL_SOCKET, SO_SNDTIMEO, (char*)&snd_tmo, sizeof(snd_tmo));
+#else
+                    struct timeval snd_tv{5, 0};
+                    setsockopt(cs, SOL_SOCKET, SO_SNDTIMEO, (const char*)&snd_tv, sizeof(snd_tv));
+#endif
                     ClientInfo ci; ci.s=cs; ci.ip=ip; ci.connect_time=clk::now();
                     ci.kp=crypto::keygen();
                     // Stagger keepalive: spread pings by 150ms per client slot to avoid thundering herd
@@ -1264,6 +1281,11 @@ int main(int argc, char** argv) {
                     int online=0; for(auto& u:clients) if(u.authed) ++online;
                     send_notice(c,std::to_string(online)+(online==1?" user":" users")+" online");
                     if(!server_motd.empty()) send_to(c,proto::make_motd(server_motd));
+
+                    // Seed initial ping so /list ping has a value immediately
+                    send_to(c, proto::make_ping_user());
+                    c.keepalive_pending = true;
+                    c.keepalive_sent_at = clk::now();
 
                     auto snap=history.snapshot();
                     if(!snap.empty()) {
@@ -1390,10 +1412,10 @@ int main(int argc, char** argv) {
                             if(ekey.empty()){send_notice(c,"usage: /adminkey elevate <key>");continue;}
                             if(auto it=g_admins.find(ekey);it!=g_admins.end()) {
                                 elevate_to_admin(c,ekey);
-                                send_notice(c,"elevated to admin! type /adminkey add to save your key.");
+                                send_notice(c,"elevated to admin! type /key add to save your key.");
                             } else if(auto it2=g_mods.find(ekey);it2!=g_mods.end()) {
                                 elevate_to_mod(c,ekey);
-                                send_notice(c,"elevated to mod! type /adminkey add to save your key.");
+                                send_notice(c,"elevated to mod! type /key add to save your key.");
                             } else {
                                 send_notice(c,"invalid key.");
                             }
