@@ -1,8 +1,11 @@
 #pragma once
 #include <string>
 
-// Application and protocol versions
-static constexpr const char* APP_VERSION   = "1.1";
+// Application version — set at build time via -DAPP_VERSION_STR="x.y" (see CMakeLists.txt)
+#ifndef APP_VERSION_STR
+#define APP_VERSION_STR "dev"
+#endif
+static constexpr const char* APP_VERSION   = APP_VERSION_STR;
 static constexpr const char* PROTO_VERSION = "3";
 
 namespace proto {
@@ -31,7 +34,7 @@ bool parse_welcome(const std::string& line, std::string& server_name, bool& pass
 // AUTH <user> <pass|-> [#RRGGBB] [key] [vN]
 std::string make_auth(const std::string& user, const std::string& pass,
                       const std::string& color_hex, const std::string& admin_key,
-                      const std::string& version = PROTO_VERSION);
+                      const std::string& version = APP_VERSION);
 bool parse_auth(const std::string& line, std::string& user, std::string& pass,
                 std::string& color, bool& has_color,
                 std::string& admin_key, bool& has_key,

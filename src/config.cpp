@@ -62,6 +62,7 @@ ServerConfig ServerConfig::from_ini(const Ini& ini) {
     c.keepalive_interval_secs = ini.get_int("keepalive_interval_secs", 30);
     c.keepalive_timeout_secs  = ini.get_int("keepalive_timeout_secs",  10);
     c.ip_block_duration_secs  = ini.get_int("ip_block_duration_secs",  300);
+    c.allow_version_mismatch  = ini.get_bool("allow_version_mismatch", false);
     return c;
 }
 
@@ -84,6 +85,7 @@ void ServerConfig::write_default(const std::string& path, const ServerConfig& c)
     f << "keepalive_interval_secs=" << c.keepalive_interval_secs << "\n";
     f << "keepalive_timeout_secs="  << c.keepalive_timeout_secs  << "\n";
     f << "ip_block_duration_secs="  << c.ip_block_duration_secs  << "\n";
+    f << "allow_version_mismatch="  << (c.allow_version_mismatch ? "1" : "0") << "\n";
 }
 
 // Appends any config keys that are missing from an existing config file.
@@ -110,6 +112,7 @@ static void append_missing_server_keys(const std::string& path, const Ini& exist
     add("keepalive_interval_secs", std::to_string(def.keepalive_interval_secs));
     add("keepalive_timeout_secs",  std::to_string(def.keepalive_timeout_secs));
     add("ip_block_duration_secs",  std::to_string(def.ip_block_duration_secs));
+    add("allow_version_mismatch",  "0");
 }
 
 ServerConfig ServerConfig::load_or_create(const std::string& path) {

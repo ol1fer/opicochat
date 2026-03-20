@@ -1125,9 +1125,15 @@ int main(int argc, char** argv) {
                     std::string role_tag = c.is_admin ? " admin" : c.is_mod ? " mod" : "";
                     send_to(c, "AUTH_OK" + role_tag);
 
-                    if(!version.empty()&&version!=PROTO_VERSION)
+                    if(!version.empty() && version != APP_VERSION) {
+                        if(!cfg.allow_version_mismatch) {
+                            send_to(c, "AUTH_FAIL version mismatch: server v"
+                                +std::string(APP_VERSION)+", client v"+version);
+                            disc=true; break;
+                        }
                         send_notice(c,"warning: version mismatch (server v"
-                            +std::string(PROTO_VERSION)+", you v"+version+")");
+                            +std::string(APP_VERSION)+", you v"+version+")");
+                    }
 
                     int online=0; for(auto& u:clients) if(u.authed) ++online;
                     send_notice(c,std::to_string(online)+(online==1?" user":" users")+" online");

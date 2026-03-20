@@ -1,6 +1,24 @@
 cmake_minimum_required(VERSION 3.20)
 project(opicochat LANGUAGES CXX)
 
+# Derive app version from git tag, or accept an override from the build system
+if(DEFINED APP_VERSION_OVERRIDE AND NOT APP_VERSION_OVERRIDE STREQUAL "")
+    set(APP_VERSION "${APP_VERSION_OVERRIDE}")
+else()
+    execute_process(
+        COMMAND git describe --tags --abbrev=0
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        OUTPUT_VARIABLE _GIT_TAG
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    string(REGEX REPLACE "^v" "" APP_VERSION "${_GIT_TAG}")
+    if(APP_VERSION STREQUAL "" OR APP_VERSION STREQUAL "${_GIT_TAG}")
+        set(APP_VERSION "dev")
+    endif()
+endif()
+message(STATUS "opicochat version: ${APP_VERSION}")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -14,6 +32,7 @@ add_library(opico_common STATIC
     src/utils.cpp
 )
 target_include_directories(opico_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_definitions(opico_common PUBLIC APP_VERSION_STR="${APP_VERSION}")
 
 if(WIN32)
     target_compile_definitions(opico_common PUBLIC _WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN)

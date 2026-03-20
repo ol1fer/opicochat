@@ -32,6 +32,7 @@ struct ServerConfig {
     int         keepalive_interval_secs = 30;     // seconds between keepalive pings
     int         keepalive_timeout_secs  = 10;     // seconds before kicking unresponsive client
     int         ip_block_duration_secs  = 300;    // how long to block an IP after rate-limit hit
+    bool        allow_version_mismatch  = false;  // if false, clients on a different version are rejected
 
     static ServerConfig from_ini(const Ini& ini);
     static void         write_default(const std::string& path, const ServerConfig& cfg);

@@ -16,7 +16,8 @@ jobs:
 
       - name: build
         run: |
-          cmake --preset linux-release
+          VERSION=${GITHUB_REF_NAME#v}
+          cmake --preset linux-release -DAPP_VERSION_OVERRIDE=$VERSION
           cmake --build --preset linux-release -j
 
       - name: rename
@@ -38,7 +39,8 @@ jobs:
 
       - name: build
         run: |
-          cmake --preset windows-msvc-release
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          cmake --preset windows-msvc-release -DAPP_VERSION_OVERRIDE=$version
           cmake --build --preset windows-msvc-release -j
 
       - name: rename
@@ -53,14 +55,15 @@ jobs:
             opicochat-windows-x64.exe
             opicochat_server-windows-x64.exe
 
-  build-macos:
-    runs-on: macos-latest
+  build-macos-x64:
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
 
       - name: build
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          VERSION=${GITHUB_REF_NAME#v}
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DAPP_VERSION_OVERRIDE=$VERSION
           cmake --build build -j
 
       - name: rename
@@ -70,13 +73,36 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos
+          name: macos-x64
           path: |
             opicochat-macos-x64
             opicochat_server-macos-x64
 
+  build-macos-arm:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DAPP_VERSION_OVERRIDE=$VERSION
+          cmake --build build -j
+
+      - name: rename
+        run: |
+          cp build/opicochat opicochat-macos-arm64
+          cp build/opicochat_server opicochat_server-macos-arm64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm
+          path: |
+            opicochat-macos-arm64
+            opicochat_server-macos-arm64
+
   release:
-    needs: [build-linux, build-windows, build-macos]
+    needs: [build-linux, build-windows, build-macos-x64, build-macos-arm]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -93,4 +119,6 @@ jobs:
             opicochat_server-windows-x64.exe
             opicochat-macos-x64
             opicochat_server-macos-x64
+            opicochat-macos-arm64
+            opicochat_server-macos-arm64
           generate_release_notes: true
