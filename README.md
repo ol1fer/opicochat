@@ -2,7 +2,7 @@
 
 a terminal chat server + client written in c++17. no external dependencies — just the standard library and platform sockets.
 
-works on linux and windows. macos should work but is untested.
+works on linux, windows, and macos (arm64). the windows executables have icons embedded.
 
 ---
 
@@ -11,6 +11,7 @@ works on linux and windows. macos should work but is untested.
 - **end-to-end encryption** — x25519 key exchange + chacha20 stream cipher on every connection
 - **admin & mod system** — key-based roles with separate permissions. mods can kick/mute/etc, admins can do everything plus manage other staff
 - **stealth mode** — admins can go invisible in `/list` and chat (other admins still see a grey `a` badge)
+- **version enforcement** — server rejects clients on a different version by default (configurable)
 - **rate limiting** — per-ip connection rate and concurrency limits. hitting the rate limit blocks that ip for a configurable duration
 - **keepalive** — server pings clients on a configurable interval and kicks unresponsive ones
 - **lockdown mode** — `/lockdown on` blocks all new connections instantly
@@ -48,14 +49,16 @@ cmake --preset windows-msvc-release
 cmake --build --preset windows-msvc-release -j
 ```
 
-### macos (untested)
+the windows executables have icons embedded automatically via resource files.
+
+### macos (arm64)
 
 ```bash
-xcode-select --install
-brew install cmake
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
+
+> note: only arm64 (apple silicon) is supported. intel mac builds are not provided as the runner was retired by github actions.
 
 ---
 
@@ -90,6 +93,10 @@ server_name_color=            # optional #rrggbb shown in client server list
 motd=                         # message of the day (sent to clients on join)
 password_enabled=0
 password=
+
+# version enforcement
+allow_version_mismatch=0      # 0 = reject clients on a different version (recommended)
+                              # 1 = allow with a warning notice
 
 # connection limits
 max_concurrent_per_ip=5       # max simultaneous connections from one ip
@@ -246,6 +253,18 @@ mods cannot go stealth. stealth admins appear as normal users to everyone except
 
 ---
 
+## version enforcement
+
+by default the server rejects clients that don't match its version with an error message showing both versions:
+
+```
+version mismatch: server v1.3, client v1.2
+```
+
+to allow older clients to connect (with a warning instead), set `allow_version_mismatch=1` in `opicochatserver.cfg`.
+
+---
+
 ## encryption
 
 every connection uses a fresh x25519 ephemeral key exchange. the resulting shared secret keys a chacha20 stream cipher for all traffic after the handshake. there are no persistent keys and no certificates needed — the encryption is opportunistic but protects against passive interception.
@@ -265,5 +284,6 @@ every connection uses a fresh x25519 ephemeral key exchange. the resulting share
 
 - **windows shows escape codes** — use windows terminal or a recent powershell/cmd session
 - **can't become admin** — make sure the key is saved for the exact `host:port` or enter it via **enter address manually**. check the server still has the key in `admins.cfg`
+- **"version mismatch" on connect** — client and server must be the same version. download the matching release or set `allow_version_mismatch=1` on the server to allow it
 - **history shows 0 messages** — this is intentional by default for privacy. set `history_size=N` in the server config to enable it
 - **client log location** — logs go to `logs/client-YYYY-MM-DD-<host>.log` next to the client binary
