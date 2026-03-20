@@ -34,6 +34,15 @@
 
 using clk = std::chrono::steady_clock;
 
+static const char* GITHUB_RELEASES_API = "https://api.github.com/repos/ol1fer/opicochat/releases/latest";
+#ifdef _WIN32
+  static const char* SERVER_UPDATE_ASSET = "opicochat_server-windows-x64.exe";
+#elif defined(__APPLE__)
+  static const char* SERVER_UPDATE_ASSET = "opicochat_server-macos-arm64";
+#else
+  static const char* SERVER_UPDATE_ASSET = "opicochat_server-linux-x64";
+#endif
+
 // ============================================================
 // Console line editing
 // ============================================================
@@ -285,6 +294,10 @@ int main(int argc, char** argv) {
     bool lockdown = false;  // when true, new connections are rejected
     std::unordered_map<std::string, clk::time_point> ip_blocked; // IP -> unblock time
 
+    // Self-update state (console only)
+    std::string srv_update_version;  // latest tag from github ("" = not checked)
+    std::string srv_update_url;      // download url if update available
+
     std::mutex cmd_mtx;
     std::deque<std::function<void()>> cmd_q;
     auto post = [&](std::function<void()> fn) {
@@ -383,7 +396,7 @@ int main(int argc, char** argv) {
                 lines.push_back(G+"/mod add|remove|list <user>"+R);
                 lines.push_back(G+"/reload bans|admins|mods"+R);
             }
-            if(!from) lines.push_back("/say <text>  /shutdown  /status");
+            if(!from) lines.push_back("/say <text>  /shutdown  /status  /updateserver [confirm]");
             for(auto& l : lines) srv_say(l);
             return;
         }
@@ -848,6 +861,53 @@ int main(int argc, char** argv) {
                     proto::make_chat(now_iso(), "[server]", "-", "-", sanitize_message(text)));
                 return;
             }
+            if(slash == "/updateserver") {
+                if(from) { srv_say("this command must be run from the server console."); return; }
+                std::string arg = next();
+                if(arg == "confirm") {
+                    if(srv_update_url.empty()) {
+                        srv_say("no update check done yet. run /updateserver first."); return;
+                    }
+                    std::string exe = get_self_exe_path();
+                    if(exe.empty()) { srv_say("could not determine server executable path."); return; }
+                    std::string tmp = exe + ".update";
+#ifdef _WIN32
+                    tmp = exe + "_update.exe";
+#endif
+                    srv_say("downloading v" + srv_update_version + "...");
+                    if(!update_download_file(srv_update_url, tmp)) {
+                        srv_say("download failed. check curl/powershell is available."); return;
+                    }
+                    std::string msg;
+                    if(update_apply_binary(tmp, exe, msg)) {
+                        srv_say(msg);
+                        srv_say("current server will keep running. restart it to use v" + srv_update_version + ".");
+                    } else {
+                        srv_say("update failed: " + msg);
+                    }
+                    srv_update_version.clear(); srv_update_url.clear();
+                    return;
+                }
+                // Check for updates
+                srv_say("checking for updates...");
+                std::string json = update_http_get(GITHUB_RELEASES_API);
+                if(json.empty()) { srv_say("failed to reach github. check curl/powershell is available."); return; }
+                std::string tag = update_get_latest_tag(json);
+                std::string latest = tag;
+                if(!latest.empty() && latest[0] == 'v') latest = latest.substr(1);
+                if(latest.empty()) { srv_say("could not parse response from github."); return; }
+                if(latest == APP_VERSION) {
+                    srv_say("already up to date (v" + std::string(APP_VERSION) + ")."); return;
+                }
+                std::string url = update_find_asset_url(json, SERVER_UPDATE_ASSET);
+                if(url.empty()) { srv_say("update v" + latest + " found but no binary for this platform."); return; }
+                srv_update_version = latest;
+                srv_update_url = url;
+                srv_say("update available: v" + latest + " (current: v" + std::string(APP_VERSION) + ")");
+                srv_say("run /updateserver confirm to download and apply.");
+                return;
+            }
+
             if(slash == "/shutdown" || slash == "/stop") {
                 srv_print("shutting down..."); running = false; return;
             }

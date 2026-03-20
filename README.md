@@ -26,6 +26,7 @@ works on linux, windows, and macos (arm64). the windows executables have icons e
 - **per-user colors** — optional `#rrggbb` hex color per username (deterministic fallback color if none set)
 - **ignore list** — hide messages from specific users client-side
 - **saved usernames & servers** — store multiple usernames with colors and servers with passwords/keys
+- **self-update** — `/updateclient` and `/updateserver` check github for a newer release and apply it in-place. linux/macos replace atomically; windows writes a self-deleting `update.bat`
 
 ---
 
@@ -169,6 +170,8 @@ key fields:
 | `/pause` | buffer incoming chat so you can focus |
 | `/play` or `/unpause` | replay buffered messages and resume |
 | `/log on\|off` | toggle client-side logging to a local file |
+| `/updateclient` | check github for a newer client version |
+| `/updateclient confirm` | download and apply the update |
 | `/savenick [force\|new]` | save current username+color to your profile |
 | `/saveserver [force\|new]` | save current server to your server list |
 | `/key add` | save your current admin/mod key to this server entry |

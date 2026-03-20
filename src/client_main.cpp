@@ -29,6 +29,15 @@
 
 using namespace std::chrono;
 
+static const char* GITHUB_RELEASES_API = "https://api.github.com/repos/ol1fer/opicochat/releases/latest";
+#ifdef _WIN32
+  static const char* CLIENT_UPDATE_ASSET = "opicochat-windows-x64.exe";
+#elif defined(__APPLE__)
+  static const char* CLIENT_UPDATE_ASSET = "opicochat-macos-arm64";
+#else
+  static const char* CLIENT_UPDATE_ASSET = "opicochat-linux-x64";
+#endif
+
 // ============================================================
 // Config helpers
 // ============================================================
@@ -264,6 +273,10 @@ static bool run_chat(const std::string& host, uint16_t port,
 
     crypto::CipherStream cipher;
     bool disc = false; std::string line;
+
+    // Self-update state
+    std::string cli_update_version;
+    std::string cli_update_url;
 
     // Client-side logging setup (used throughout run_chat)
     bool session_log = cfg.client_log_enabled;
@@ -710,6 +723,61 @@ static bool run_chat(const std::string& host, uint16_t port,
             redraw_input(in_state); continue;
         }
 
+        // ---- /updateclient ----
+        if(input.rfind("/updateclient", 0) == 0 && (input.size() == 13 || input[13] == ' ')) {
+            std::string arg = trim(input.size() > 13 ? input.substr(13) : "");
+            if(arg == "confirm") {
+                if(cli_update_url.empty()) {
+                    cli_print("  no update check done yet. run /updateclient first.");
+                } else {
+                    std::string exe = get_self_exe_path();
+                    if(exe.empty()) { cli_print("  could not determine client executable path."); continue; }
+                    std::string tmp = exe + ".update";
+#ifdef _WIN32
+                    tmp = exe + "_update.exe";
+#endif
+                    cli_print("  downloading v" + cli_update_version + "...");
+                    if(!update_download_file(cli_update_url, tmp)) {
+                        cli_print("  download failed. check curl is installed (linux/mac) or powershell is available (windows).");
+                    } else {
+                        std::string msg;
+                        if(update_apply_binary(tmp, exe, msg)) {
+                            cli_print("  " + msg);
+                        } else {
+                            cli_print("  update failed: " + msg);
+                        }
+                    }
+                    cli_update_version.clear(); cli_update_url.clear();
+                }
+            } else {
+                cli_print("  checking for updates...");
+                std::string json = update_http_get(GITHUB_RELEASES_API);
+                if(json.empty()) {
+                    cli_print("  failed to reach github. check curl is installed (linux/mac) or powershell is available (windows).");
+                } else {
+                    std::string tag = update_get_latest_tag(json);
+                    std::string latest = tag;
+                    if(!latest.empty() && latest[0] == 'v') latest = latest.substr(1);
+                    if(latest.empty()) {
+                        cli_print("  could not parse response from github.");
+                    } else if(latest == APP_VERSION) {
+                        cli_print("  already up to date (v" + std::string(APP_VERSION) + ").");
+                    } else {
+                        std::string url = update_find_asset_url(json, CLIENT_UPDATE_ASSET);
+                        if(url.empty()) {
+                            cli_print("  update v" + latest + " found but no binary for this platform.");
+                        } else {
+                            cli_update_version = latest;
+                            cli_update_url = url;
+                            cli_print("  update available: v" + latest + " (current: v" + std::string(APP_VERSION) + ")");
+                            cli_print("  type /updateclient confirm to download and apply.");
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+
         if(input == "/dc" || input == "/disconnect") {
             net::send_line(s, "QUIT", &cipher); running = false; q_cv.notify_all(); break;
         }
@@ -848,6 +916,8 @@ static bool run_chat(const std::string& host, uint16_t port,
                 std::cout << "  /pause                    - pause incoming chat display\n";
                 std::cout << "  /play  /unpause           - resume and replay buffered messages\n";
                 std::cout << "  /log on|off               - toggle client-side chat logging\n";
+                std::cout << "  /updateclient             - check for a newer client version\n";
+                std::cout << "  /updateclient confirm     - download and apply the update\n";
                 std::cout << "  /savenick [force|new]     - save current nickname to profile\n";
                 std::cout << "  /saveserver [force|new]   - save current server to server list\n";
                 std::cout << "  /key add                  - save current admin/mod key to this server\n";
@@ -978,6 +1048,7 @@ int main(int argc, char** argv) {
         int c = menu_prompt(std::string("opicochat v") + APP_VERSION, {
             {1, "connect"},
             {2, "settings"},
+            {3, "check for updates"},
             {0, "quit"},
         });
         if(c == 0) break;
@@ -1110,6 +1181,53 @@ int main(int argc, char** argv) {
             }
             cfg.last_host = host; cfg.last_port = port; cfg.last_username = user;
             save_cfg(cfg);
+            continue;
+        }
+
+        // ===== CHECK FOR UPDATES =====
+        if(c == 3) {
+            std::cout << "checking for updates...\n";
+            std::string json = update_http_get(GITHUB_RELEASES_API);
+            if(json.empty()) {
+                std::cout << "failed to reach github. check curl is installed (linux/mac) or powershell is available (windows).\n";
+            } else {
+                std::string tag = update_get_latest_tag(json);
+                std::string latest = tag;
+                if(!latest.empty() && latest[0] == 'v') latest = latest.substr(1);
+                if(latest.empty()) {
+                    std::cout << "could not parse response from github.\n";
+                } else if(latest == APP_VERSION) {
+                    std::cout << "already up to date (v" << APP_VERSION << ").\n";
+                } else {
+                    std::string url = update_find_asset_url(json, CLIENT_UPDATE_ASSET);
+                    if(url.empty()) {
+                        std::cout << "update v" << latest << " found but no binary for this platform.\n";
+                    } else {
+                        std::cout << "update available: v" << latest << " (current: v" << APP_VERSION << ")\n";
+                        std::cout << "apply now? (1=yes, 0=no): ";
+                        std::string ans; std::getline(std::cin, ans);
+                        if(trim(ans) == "1") {
+                            std::string exe = get_self_exe_path();
+                            if(exe.empty()) { std::cout << "could not determine executable path.\n"; continue; }
+                            std::string tmp = exe + ".update";
+#ifdef _WIN32
+                            tmp = exe + "_update.exe";
+#endif
+                            std::cout << "downloading v" << latest << "...\n";
+                            if(!update_download_file(url, tmp)) {
+                                std::cout << "download failed.\n";
+                            } else {
+                                std::string msg;
+                                if(update_apply_binary(tmp, exe, msg)) {
+                                    std::cout << msg << "\n";
+                                } else {
+                                    std::cout << "update failed: " << msg << "\n";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             continue;
         }
 

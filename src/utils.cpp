@@ -1,14 +1,17 @@
 #include "utils.hpp"
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <sstream>
 #include <vector>
 #include "common.hpp" // for format_hhmm
 
 #ifndef _WIN32
   #include <unistd.h>
+  #include <sys/stat.h>
   #ifdef __APPLE__
     #include <mach-o/dyld.h>
   #endif
@@ -222,6 +225,107 @@ static std::string get_exe_path(int argc, char** argv) {
     char buf[4096]; ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf)-1);
     if(n > 0) { buf[n] = 0; return buf; }
     return argc > 0 ? argv[0] : "";
+#endif
+}
+
+// ---------- Self-update helpers ----------
+
+std::string get_self_exe_path() {
+#ifdef __APPLE__
+    uint32_t size = 0; _NSGetExecutablePath(nullptr, &size);
+    std::vector<char> buf(size + 1);
+    if(_NSGetExecutablePath(buf.data(), &size) == 0) { buf[size] = '\0'; return buf.data(); }
+    return "";
+#elif defined(_WIN32)
+    char buf[MAX_PATH]; DWORD n = GetModuleFileNameA(nullptr, buf, MAX_PATH);
+    return n ? std::string(buf, n) : "";
+#else
+    char buf[4096]; ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf)-1);
+    if(n > 0) { buf[n] = '\0'; return buf; }
+    return "";
+#endif
+}
+
+std::string update_http_get(const std::string& url) {
+#ifdef _WIN32
+    std::string cmd = "powershell -NoProfile -Command \""
+        "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; "
+        "(Invoke-WebRequest -Uri '" + url + "' -UseBasicParsing "
+        "-Headers @{'User-Agent'='opicochat-updater'}).Content\" 2>nul";
+    FILE* p = _popen(cmd.c_str(), "r");
+#else
+    std::string cmd = "curl -fsSL --max-time 15 "
+        "-H \"User-Agent: opicochat-updater\" \"" + url + "\" 2>/dev/null";
+    FILE* p = popen(cmd.c_str(), "r");
+#endif
+    if(!p) return "";
+    std::string result; char buf[4096];
+    while(fgets(buf, sizeof(buf), p)) result += buf;
+#ifdef _WIN32
+    _pclose(p);
+#else
+    pclose(p);
+#endif
+    return result;
+}
+
+std::string update_get_latest_tag(const std::string& json) {
+    const std::string key = "\"tag_name\": \"";
+    auto pos = json.find(key);
+    if(pos == std::string::npos) return "";
+    pos += key.size();
+    auto end = json.find('"', pos);
+    return end == std::string::npos ? "" : json.substr(pos, end - pos);
+}
+
+std::string update_find_asset_url(const std::string& json, const std::string& asset_name) {
+    std::string name_needle = "\"name\": \"" + asset_name + "\"";
+    auto pos = json.find(name_needle);
+    if(pos == std::string::npos) return "";
+    const std::string url_key = "\"browser_download_url\": \"";
+    auto upos = json.find(url_key, pos);
+    if(upos == std::string::npos) return "";
+    upos += url_key.size();
+    auto end = json.find('"', upos);
+    return end == std::string::npos ? "" : json.substr(upos, end - upos);
+}
+
+bool update_download_file(const std::string& url, const std::string& dest) {
+#ifdef _WIN32
+    std::string cmd = "powershell -NoProfile -Command \""
+        "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; "
+        "Invoke-WebRequest -Uri '" + url + "' -OutFile '" + dest +
+        "' -UseBasicParsing\" 2>nul";
+    return system(cmd.c_str()) == 0;
+#else
+    std::string cmd = "curl -fsSL --max-time 120 \"" + url + "\" -o \"" + dest + "\" 2>/dev/null";
+    return system(cmd.c_str()) == 0;
+#endif
+}
+
+bool update_apply_binary(const std::string& downloaded, const std::string& exe_path, std::string& msg) {
+#ifdef _WIN32
+    // Can't replace a running .exe; write a self-deleting bat in the same directory
+    std::string dir;
+    auto sep = exe_path.rfind('\\');
+    if(sep != std::string::npos) dir = exe_path.substr(0, sep + 1);
+    std::string bat_path = dir + "update.bat";
+    std::ofstream f(bat_path);
+    if(!f) { msg = "failed to write update.bat in " + dir; return false; }
+    f << "@echo off\r\n";
+    f << "timeout /t 2 /nobreak >nul\r\n";
+    f << "move /y \"" << downloaded << "\" \"" << exe_path << "\"\r\n";
+    f << "del \"%~f0\"\r\n";
+    msg = "update.bat written. close this window and run update.bat to apply.";
+    return true;
+#else
+    chmod(downloaded.c_str(), 0755);
+    if(rename(downloaded.c_str(), exe_path.c_str()) != 0) {
+        msg = "failed to replace binary — check permissions.";
+        return false;
+    }
+    msg = "update applied. restart to use the new version.";
+    return true;
 #endif
 }
 

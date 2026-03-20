@@ -1,5 +1,14 @@
 # changelog
 
+## v1.5
+- **/updateserver** — server console command to check for and apply server binary updates from github
+- **/updateclient** — client-side command to check for and apply client binary updates from github
+- **check for updates** — option 3 in the client main menu. checks github, offers to apply immediately
+- update flow: run the command first to check, then run with `confirm` to apply. running confirm without checking first gives a clear message
+- linux/macos: update replaces the binary atomically (no restart of running process needed until you choose to)
+- windows: downloads the new binary and writes a self-deleting `update.bat` to apply after closing
+- duplicate usernames are already blocked at login — `/inspect` always finds at most one match
+
 ## v1.4
 - **/inspect** — renamed from `/info` (`/lookup` in docs). now shows ip, role, version, color, uptime, ping, mute status, and stealth status (stealth only shown to admins)
 
