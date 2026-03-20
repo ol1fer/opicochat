@@ -55,29 +55,6 @@ jobs:
             opicochat-windows-x64.exe
             opicochat_server-windows-x64.exe
 
-  build-macos-x64:
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: build
-        run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DAPP_VERSION_OVERRIDE=$VERSION
-          cmake --build build -j
-
-      - name: rename
-        run: |
-          cp build/opicochat opicochat-macos-x64
-          cp build/opicochat_server opicochat_server-macos-x64
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos-x64
-          path: |
-            opicochat-macos-x64
-            opicochat_server-macos-x64
-
   build-macos-arm:
     runs-on: macos-latest
     steps:
@@ -102,7 +79,7 @@ jobs:
             opicochat_server-macos-arm64
 
   release:
-    needs: [build-linux, build-windows, build-macos-x64, build-macos-arm]
+    needs: [build-linux, build-windows, build-macos-arm]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -117,8 +94,6 @@ jobs:
             opicochat_server-linux-x64
             opicochat-windows-x64.exe
             opicochat_server-windows-x64.exe
-            opicochat-macos-x64
-            opicochat_server-macos-x64
             opicochat-macos-arm64
             opicochat_server-macos-arm64
           generate_release_notes: true
