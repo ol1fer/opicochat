@@ -32,7 +32,7 @@ add_library(opico_common STATIC
     src/utils.cpp
 )
 target_include_directories(opico_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_compile_definitions(opico_common PUBLIC "APP_VERSION_STR=\"${APP_VERSION}\"")
+target_compile_definitions(opico_common PUBLIC APP_VERSION_STR=${APP_VERSION})
 
 if(WIN32)
     target_compile_definitions(opico_common PUBLIC _WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN)
