@@ -3,7 +3,7 @@ project(opicochat LANGUAGES CXX)
 
 # Derive app version from git tag, or accept an override from the build system
 if(DEFINED APP_VERSION_OVERRIDE AND NOT APP_VERSION_OVERRIDE STREQUAL "")
-    set(APP_VERSION "${APP_VERSION_OVERRIDE}")
+    string(REGEX REPLACE "^v" "" APP_VERSION "${APP_VERSION_OVERRIDE}")
 else()
     execute_process(
         COMMAND git describe --tags --abbrev=0

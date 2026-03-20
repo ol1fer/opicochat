@@ -16,8 +16,7 @@ jobs:
 
       - name: build
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          cmake --preset linux-release -DAPP_VERSION_OVERRIDE=$VERSION
+          cmake --preset linux-release "-DAPP_VERSION_OVERRIDE=${{ github.ref_name }}"
           cmake --build --preset linux-release -j
 
       - name: rename
@@ -39,8 +38,7 @@ jobs:
 
       - name: build
         run: |
-          $version = $env:GITHUB_REF_NAME -replace '^v', ''
-          cmake --preset windows-msvc-release -DAPP_VERSION_OVERRIDE=$version
+          cmake --preset windows-msvc-release "-DAPP_VERSION_OVERRIDE=${{ github.ref_name }}"
           cmake --build --preset windows-msvc-release -j
 
       - name: rename
@@ -62,8 +60,7 @@ jobs:
 
       - name: build
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DAPP_VERSION_OVERRIDE=$VERSION
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release "-DAPP_VERSION_OVERRIDE=${{ github.ref_name }}"
           cmake --build build -j
 
       - name: rename
