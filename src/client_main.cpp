@@ -773,6 +773,10 @@ static bool run_chat(const std::string& host, uint16_t port,
                     cli_print("  " + msg + " relaunching...");
                     net::send_line(s, "QUIT", &cipher);
                     closesocket_cross(s);
+                    // Reset terminal from raw mode so the new process inherits a clean terminal
+                    { struct termios t; tcgetattr(STDIN_FILENO, &t);
+                      t.c_lflag |= ICANON | ECHO; t.c_cc[VMIN] = 1; t.c_cc[VTIME] = 0;
+                      tcsetattr(STDIN_FILENO, TCSAFLUSH, &t); }
                     execl(exe.c_str(), exe.c_str(), (char*)nullptr);
                     cli_print("  execl failed — restart manually.");
                 } else {
@@ -1235,8 +1239,38 @@ int main(int argc, char** argv) {
                     if(url.empty()) {
                         std::cout << "update v" << latest << " found but no binary for this platform.\n";
                     } else {
-                        std::cout << "update available: v" << latest << " (current: v" << APP_VERSION << ").\n";
-                        std::cout << "connect to a server and type /updateclient confirm to apply.\n";
+                        std::cout << "update available: v" << latest << " (current: v" << APP_VERSION << ")\n";
+                        int apply_c = menu_prompt("apply update?", {{1, "yes"}, {0, "no"}});
+                        if(apply_c == 1) {
+                            std::string exe = get_self_exe_path();
+                            if(exe.empty()) { std::cout << "could not determine executable path.\n"; continue; }
+#ifdef _WIN32
+                            std::string bat = update_write_bat(exe, false);
+                            if(bat.empty()) { std::cout << "failed to write updater batch file.\n"; continue; }
+                            update_launch_file(bat);
+                            std::cout << "updater launched. the client will relaunch automatically.\n";
+                            std::exit(0);
+#else
+                            std::string tmp = exe + ".update";
+                            std::cout << "downloading v" << latest << "...\n";
+                            if(!update_download_file(url, tmp)) {
+                                std::cout << "download failed.\n";
+                            } else {
+                                std::string msg;
+                                if(update_apply_binary(tmp, exe, msg)) {
+                                    std::cout << msg << " relaunching...\n";
+                                    // Reset terminal from raw mode so the new process inherits a clean terminal
+                                    { struct termios t; tcgetattr(STDIN_FILENO, &t);
+                                      t.c_lflag |= ICANON | ECHO; t.c_cc[VMIN] = 1; t.c_cc[VTIME] = 0;
+                                      tcsetattr(STDIN_FILENO, TCSAFLUSH, &t); }
+                                    execl(exe.c_str(), exe.c_str(), (char*)nullptr);
+                                    std::cout << "execl failed — restart manually.\n";
+                                } else {
+                                    std::cout << "update failed: " << msg << "\n";
+                                }
+                            }
+#endif
+                        }
                     }
                 }
             }
