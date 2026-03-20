@@ -1,5 +1,20 @@
 # changelog
 
+## v2.1
+- **freeze fix** — added a 5s send timeout on all client sockets to prevent a slow or disconnecting client from blocking the server's select loop and freezing all other users
+- **ping on join** — server sends an initial ping immediately after a client authenticates, so `/list ping` always shows a value rather than `?`
+- **`/list ping` header** — now shows `online (N) — ping:` before listing users
+- **`/reload config`** — new option for `/reload` that reloads `opicochatserver.cfg` at runtime, including updating the motd
+- **motd format** — motd now displays as `~ text ~` instead of `~ motd: text ~`
+- **dm colors** — sender name in direct messages is now colorized using their chat color
+- **`/key add` fix** — fixed remaining references that still said `/adminkey add`
+- **settings prompt** — "admin key" prompt in server settings renamed to "admin/mod key"
+- **check for updates menu** — no longer prompts to apply inline; just reports and directs to `/updateclient confirm`
+- **batch file auto-close** — windows update batch file now closes its window automatically after completing
+
+## v2.0
+- **windows version string fix** — fixed version showing as `$version` on windows builds; version is now written to a generated header at cmake configure time, bypassing compiler flag quoting issues
+
 ## v1.6
 - **/updateclient force** and **/updateserver force** — skip version check and force a reinstall of the latest binary
 - **automatic windows updater** — `confirm`/`force` on windows writes a named batch file (`opicochatclientupdater.bat` / `opicochatserverupdater.bat`) and launches it automatically. the server closes itself after launching; the client disconnects and exits. the batch file waits in a loop until the exe unlocks, replaces it, then relaunches. server batch asks yes/no before relaunching; client auto-relaunches.
