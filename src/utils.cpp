@@ -382,14 +382,17 @@ std::string update_write_bat(const std::string& exe_path, bool is_server) {
     f << "echo.\r\n";
     f << "echo " << display << " has been updated successfully.\r\n";
     if(is_server) {
-        f << "set /p \"RELAUNCH=Relaunch server now? [y/n]: \"\r\n";
+        f << "set /p \"RELAUNCH=Relaunch server now? [Y/n]: \"\r\n";
+        f << "if \"!RELAUNCH!\"==\"\" set \"RELAUNCH=y\"\r\n";
         f << "if /i \"!RELAUNCH!\"==\"y\" (\r\n";
         f << "    start \"\" \"%EXE%\"\r\n";
         f << ")\r\n";
     } else {
-        f << "echo Press any key to relaunch...\r\n";
-        f << "pause >nul\r\n";
-        f << "start \"\" \"%EXE%\"\r\n";
+        f << "set /p \"RELAUNCH=Relaunch client now? [Y/n]: \"\r\n";
+        f << "if \"!RELAUNCH!\"==\"\" set \"RELAUNCH=y\"\r\n";
+        f << "if /i \"!RELAUNCH!\"==\"y\" (\r\n";
+        f << "    start \"\" \"%EXE%\"\r\n";
+        f << ")\r\n";
     }
     f << "(goto) 2>nul & del \"%~f0\" & exit\r\n";
     return bat_path;
