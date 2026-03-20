@@ -359,13 +359,13 @@ std::string update_write_bat(const std::string& exe_path, bool is_server) {
     f << "@echo off\r\n";
     f << "setlocal EnableDelayedExpansion\r\n";
     f << "set \"EXE=" << exe_path << "\"\r\n";
-    f << "set \"TMP=%EXE%_update.exe\"\r\n";
+    f << "set \"OPICO_DL=%EXE%_update.exe\"\r\n";
     f << "set \"URL=" << url << "\"\r\n";
     f << "\r\n";
     f << "echo Downloading latest " << display << "...\r\n";
-    f << "powershell -NoProfile -Command \"[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%URL%' -OutFile '%TMP%' -UseBasicParsing\" 2>nul\r\n";
+    f << "powershell -NoProfile -Command \"[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%URL%' -OutFile '%OPICO_DL%' -UseBasicParsing\" 2>nul\r\n";
     f << "\r\n";
-    f << "if not exist \"%TMP%\" (\r\n";
+    f << "if not exist \"%OPICO_DL%\" (\r\n";
     f << "    echo Download failed. Check your internet connection.\r\n";
     f << "    pause\r\n";
     f << "    exit /b 1\r\n";
@@ -373,7 +373,7 @@ std::string update_write_bat(const std::string& exe_path, bool is_server) {
     f << "\r\n";
     f << "echo Waiting for " << display << " to close...\r\n";
     f << ":waitloop\r\n";
-    f << "move /y \"%TMP%\" \"%EXE%\" >nul 2>&1\r\n";
+    f << "move /y \"%OPICO_DL%\" \"%EXE%\" >nul 2>&1\r\n";
     f << "if errorlevel 1 (\r\n";
     f << "    timeout /t 1 /nobreak >nul\r\n";
     f << "    goto waitloop\r\n";
