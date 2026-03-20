@@ -63,6 +63,7 @@ ServerConfig ServerConfig::from_ini(const Ini& ini) {
     c.keepalive_timeout_secs  = ini.get_int("keepalive_timeout_secs",  10);
     c.ip_block_duration_secs  = ini.get_int("ip_block_duration_secs",  300);
     c.allow_version_mismatch  = ini.get_bool("allow_version_mismatch", false);
+    c.banned_names            = ini.get("banned_names", "admin,mod");
     return c;
 }
 
@@ -86,6 +87,11 @@ void ServerConfig::write_default(const std::string& path, const ServerConfig& c)
     f << "keepalive_timeout_secs="  << c.keepalive_timeout_secs  << "\n";
     f << "ip_block_duration_secs="  << c.ip_block_duration_secs  << "\n";
     f << "allow_version_mismatch="  << (c.allow_version_mismatch ? "1" : "0") << "\n";
+    f << "banned_names="            << c.banned_names            << "\n";
+}
+
+void ServerConfig::save(const std::string& path, const ServerConfig& cfg) {
+    write_default(path, cfg);
 }
 
 // Appends any config keys that are missing from an existing config file.
@@ -113,6 +119,7 @@ static void append_missing_server_keys(const std::string& path, const Ini& exist
     add("keepalive_timeout_secs",  std::to_string(def.keepalive_timeout_secs));
     add("ip_block_duration_secs",  std::to_string(def.ip_block_duration_secs));
     add("allow_version_mismatch",  "0");
+    add("banned_names",            "admin,mod");
 }
 
 ServerConfig ServerConfig::load_or_create(const std::string& path) {

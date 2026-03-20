@@ -175,6 +175,7 @@ struct ClientInfo {
     bool                 stealth_list   = false;
     bool                 was_kicked     = false;
     bool                 was_banned     = false;
+    bool                 timed_out      = false;  // set by keepalive timeout, forces disconnect
     crypto::KeyPair      kp{};
     crypto::CipherStream cipher;
     clk::time_point      connect_time   = clk::now();
@@ -265,13 +266,27 @@ int main(int argc, char** argv) {
     load_staff("mods.cfg",   g_mods);
     load_bans("banned.cfg");
 
+    // Build banned-names set from config (case-insensitive)
+    auto build_banned_names = [](const std::string& s) {
+        std::set<std::string> out;
+        std::istringstream ss(s); std::string tok;
+        while(std::getline(ss, tok, ',')) {
+            tok = trim(tok);
+            for(auto& ch : tok) ch = (char)std::tolower((unsigned char)ch);
+            if(!tok.empty()) out.insert(tok);
+        }
+        return out;
+    };
+    std::set<std::string> banned_names_set = build_banned_names(cfg.banned_names);
+
     std::string err;
     socket_t lsock = net::listen_tcp(cfg.port, err);
     if(lsock == INVALID_SOCKET) { std::cerr << "error: " << err << "\n"; return 1; }
     std::cout << "opicochat v" << APP_VERSION
               << " listening on port " << cfg.port
-              << "  (logs: " << cfg.log_dir << ")\n"
-              << "type /help for commands\n";
+              << "  (logs: " << cfg.log_dir << ")\n";
+    if(!cfg.motd.empty()) std::cout << "motd: " << cfg.motd << "\n";
+    std::cout << "type /help for commands\n";
 
     std::string cur_date  = today_date();
     std::string cur_log   = unique_log_path(cfg.log_dir, cur_date);
@@ -380,14 +395,15 @@ int main(int argc, char** argv) {
                 "/dc                 - disconnect",
             };
             if(is_staff) {
-                lines.push_back(G+"/kick <user> [reason]"+R);
-                lines.push_back(G+"/ban <user> [reason]   /banip <ip> [reason]"+R);
-                lines.push_back(G+"/unban <ip>   /banlist"+R);
+                lines.push_back(G+"/kick <user> [reason]   /skick <user> — silent kick"+R);
+                lines.push_back(G+"/ban <user> [reason]    /sban <user>  — silent ban"+R);
+                lines.push_back(G+"/banip <ip> [reason]    /unban <ip>   /banlist"+R);
                 lines.push_back(G+"/mute <user> [30s/5m/1h]   /unmute <user>"+R);
                 lines.push_back(G+"/inspect <user>   /alist"+R);
                 lines.push_back(G+"/announce <text>"+R);
                 lines.push_back(G+"/lockdown on|off       - block new connections"+R);
                 lines.push_back(G+"/health                - server health metrics"+R);
+                lines.push_back(G+"/dm <user> <text>      - direct message a user"+R);
             }
             if(is_admin) {
                 lines.push_back(G+"/stealth [chat|list] on|off"+R);
@@ -581,6 +597,7 @@ int main(int argc, char** argv) {
                 if(from && from->is_mod && !from->is_admin && c.is_admin) {
                     srv_say("mods cannot kick admins."); return;
                 }
+                broadcast(proto::make_notice(user + " was kicked."));
                 c.was_kicked = true;
                 send_to(c, "ERROR " + reason);
 #ifdef _WIN32
@@ -604,6 +621,7 @@ int main(int argc, char** argv) {
                 if(from && from->is_mod && !from->is_admin && c.is_admin) {
                     srv_say("mods cannot ban admins."); return;
                 }
+                broadcast(proto::make_notice(user + " was banned."));
                 ip = c.ip; c.was_banned = true;
                 send_to(c, "ERROR " + reason);
 #ifdef _WIN32
@@ -615,6 +633,44 @@ int main(int argc, char** argv) {
             }
             if(found) { g_ban_ips[ip] = reason; save_bans("banned.cfg"); srv_say("banned " + user + " (ip " + ip + ")"); }
             else srv_say("no such user: " + user);
+            return;
+        }
+
+        if(slash == "/skick") {
+            if(!is_staff) { srv_say("permission denied."); return; }
+            std::string user = next(); if(user.empty()) { srv_say("usage: /skick <user>"); return; }
+            bool found = false;
+            for(auto& c : clients) {
+                if(!c.authed || c.username != user) continue;
+                send_to(c, "ERROR disconnected");
+#ifdef _WIN32
+                ::shutdown(c.s, SD_BOTH);
+#else
+                ::shutdown(c.s, SHUT_RDWR);
+#endif
+                found = true; break;
+            }
+            srv_say(found ? ("shadow kicked " + user) : ("no such user: " + user));
+            return;
+        }
+
+        if(slash == "/sban") {
+            if(!is_staff) { srv_say("permission denied."); return; }
+            std::string user = next(); if(user.empty()) { srv_say("usage: /sban <user>"); return; }
+            bool found = false; std::string ip;
+            for(auto& c : clients) {
+                if(!c.authed || c.username != user) continue;
+                ip = c.ip;
+                send_to(c, "ERROR disconnected");
+#ifdef _WIN32
+                ::shutdown(c.s, SD_BOTH);
+#else
+                ::shutdown(c.s, SHUT_RDWR);
+#endif
+                found = true; break;
+            }
+            if(found && !ip.empty()) { g_ban_ips[ip] = "banned"; save_bans("banned.cfg"); }
+            srv_say(found ? ("shadow banned " + user) : ("no such user: " + user));
             return;
         }
 
@@ -770,6 +826,38 @@ int main(int argc, char** argv) {
             return;
         }
 
+        if(slash == "/dm" || slash == "/msg" || slash == "/w") {
+            std::string target = next();
+            std::string dmtext = rest();
+            if(target.empty() || dmtext.empty()) { srv_say("usage: /dm <user> <text>"); return; }
+            if(iequals(target, "server")) {
+                if(!from) { srv_say("(you are the server.)"); return; }
+                srv_print("[dm from " + from->username + "] " + dmtext);
+                std::string dm = proto::make_dm(now_iso(), from->username,
+                    from->color_hex.empty() ? "-" : from->color_hex,
+                    effective_role(*from), "server", dmtext);
+                send_to(*from, dm);
+                append_file(cur_log, dm + "\n");
+                return;
+            }
+            ClientInfo* tgt = nullptr;
+            for(auto& cl : clients) if(cl.authed && cl.username == target) { tgt = &cl; break; }
+            if(!tgt) { srv_say("no such user: " + target); return; }
+            if(from) {
+                std::string dm = proto::make_dm(now_iso(), from->username,
+                    from->color_hex.empty() ? "-" : from->color_hex,
+                    effective_role(*from), target, dmtext);
+                send_to(*tgt, dm); send_to(*from, dm);
+                append_file(cur_log, dm + "\n");
+            } else {
+                std::string dm = proto::make_dm(now_iso(), "server", "-", "-", target, dmtext);
+                send_to(*tgt, dm);
+                append_file(cur_log, dm + "\n");
+                srv_say("dm sent to " + target + ".");
+            }
+            return;
+        }
+
         if(slash == "/motd") {
             std::string text = rest();
             if(text.empty()) {
@@ -777,6 +865,7 @@ int main(int argc, char** argv) {
             } else {
                 if(!is_admin) { srv_say("permission denied."); return; }
                 server_motd = text; cfg.motd = text;
+                ServerConfig::save("opicochatserver.cfg", cfg);
                 broadcast(proto::make_motd(text));
                 append_file(cur_log, now_iso() + " [motd] " + text + "\n");
                 srv_say("motd set.");
@@ -855,6 +944,7 @@ int main(int argc, char** argv) {
             else if(what == "config") {
                 cfg = ServerConfig::load_or_create("opicochatserver.cfg");
                 server_motd = cfg.motd;
+                banned_names_set = build_banned_names(cfg.banned_names);
                 srv_say("reloaded config.");
             }
             else srv_say("usage: /reload bans|admins|mods|config");
@@ -1112,8 +1202,7 @@ int main(int argc, char** argv) {
                     auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
                         now - c.keepalive_sent_at).count();
                     if(elapsed >= cfg.keepalive_timeout_secs) {
-                        // No response — kick silently
-                        c.was_kicked = true;
+                        c.timed_out = true;
                     }
                 } else if(now >= c.next_keepalive) {
                     send_to(c, proto::make_ping_user());
@@ -1199,10 +1288,10 @@ int main(int argc, char** argv) {
 
         // Read from clients
         for(size_t i=0; i<clients.size();) {
-            auto& c=clients[i]; bool disc=false; std::string line;
-            if(!FD_ISSET(c.s,&rf)){++i;continue;}
+            auto& c=clients[i]; bool disc=c.timed_out; std::string line;
+            if(!FD_ISSET(c.s,&rf) && !c.timed_out){++i;continue;}
 
-            while(net::recv_line(c.s,line,0,disc,&c.cipher)) {
+            if(!disc) while(net::recv_line(c.s,line,0,disc,&c.cipher)) {
 
                 // ---- DH handshake ----
                 if(!c.handshake_done) {
@@ -1236,6 +1325,13 @@ int main(int argc, char** argv) {
                     }
                     if(is_reserved_name(user)) {
                         send_to(c,"AUTH_FAIL reserved username"); disc=true; break;
+                    }
+                    {
+                        std::string low = user;
+                        for(auto& ch : low) ch = (char)std::tolower((unsigned char)ch);
+                        if(banned_names_set.count(low)) {
+                            send_to(c,"AUTH_FAIL reserved username"); disc=true; break;
+                        }
                     }
                     if(auto it=g_ban_ips.find(c.ip);it!=g_ban_ips.end()) {
                         send_to(c,"ERROR "+it->second); disc=true; break;
@@ -1352,24 +1448,14 @@ int main(int argc, char** argv) {
                         continue;
                     }
 
-                    if(slash=="/dm"||slash=="/msg"||slash=="/w") {
-                        std::string target; ss>>target;
-                        std::string dmtext; std::getline(ss,dmtext); dmtext=trim(dmtext);
-                        if(target.empty()||dmtext.empty()){send_notice(c,"usage: /dm <user> <text>");continue;}
-                        ClientInfo* tgt=nullptr;
-                        for(auto& u:clients) if(u.authed&&u.username==target){tgt=&u;break;}
-                        if(!tgt){send_notice(c,"no such user: "+target);continue;}
-                        std::string dm=proto::make_dm(now_iso(),c.username,c.color_hex,effective_role(c),target,dmtext);
-                        send_to(*tgt,dm); send_to(c,dm);
-                        append_file(cur_log,dm+"\n");
-                        continue;
-                    }
-
                     if(slash=="/nick") {
                         std::string newname; ss>>newname; newname=trim(newname);
                         if(newname.empty()){send_notice(c,"usage: /nick <newname>");continue;}
-                        if(!is_valid_username(newname)||is_reserved_name(newname)){
-                            send_notice(c,"invalid username.");continue;}
+                        {   std::string low=newname;
+                            for(auto& ch:low) ch=(char)std::tolower((unsigned char)ch);
+                            if(!is_valid_username(newname)||is_reserved_name(newname)||banned_names_set.count(low)){
+                                send_notice(c,"invalid username.");continue;}
+                        }
                         bool taken=false;
                         for(auto& u:clients) if(&u!=&c&&u.authed&&u.username==newname){taken=true;break;}
                         if(taken){send_notice(c,"username already in use.");continue;}
@@ -1447,13 +1533,12 @@ int main(int argc, char** argv) {
                 net::clear_buffer(c.s); closesocket_cross(c.s);
                 msg_rate.erase(c.username);
                 if(c.authed) {
-                    const char* action=c.was_banned?" was banned":c.was_kicked?" was kicked":" left";
-                    std::string leave=proto::make_chat(now_iso(),"[server]","-","-",c.username+action);
+                    std::string leave=proto::make_chat(now_iso(),"[server]","-","-",c.username+" disconnected");
                     for(size_t j=0;j<clients.size();++j)
                         if(j!=i&&clients[j].authed)
                             net::send_line(clients[j].s,leave,&clients[j].cipher);
                     append_file(cur_log,leave+"\n"); history.push(leave);
-                    srv_print("[-] "+c.username+action);
+                    srv_print("[-] "+c.username+" disconnected");
                 }
                 clients.erase(clients.begin()+(ptrdiff_t)i);
                 continue;
