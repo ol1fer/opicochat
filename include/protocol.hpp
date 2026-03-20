@@ -1,16 +1,8 @@
 #pragma once
 #include <string>
 
-// Application version — set at build time via -DAPP_VERSION_STR=x.y (see CMakeLists.txt)
-// Using stringify so the token value (e.g. 1.7) becomes the string "1.7" without
-// needing cmake to pass quotes through the compiler's XML/response-file quoting layers.
-#define OPICO_XSTR(s) #s
-#define OPICO_STR(s)  OPICO_XSTR(s)
-#ifdef APP_VERSION_STR
-static constexpr const char* APP_VERSION = OPICO_STR(APP_VERSION_STR);
-#else
-static constexpr const char* APP_VERSION = "dev";
-#endif
+// Application version — written to version.hpp at cmake configure time (see CMakeLists.txt)
+#include "version.hpp"
 static constexpr const char* PROTO_VERSION = "3";
 
 namespace proto {

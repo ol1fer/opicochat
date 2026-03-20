@@ -268,8 +268,8 @@ int main(int argc, char** argv) {
     std::string err;
     socket_t lsock = net::listen_tcp(cfg.port, err);
     if(lsock == INVALID_SOCKET) { std::cerr << "error: " << err << "\n"; return 1; }
-    std::cout << "opicochat v" << APP_VERSION << " (proto v" << PROTO_VERSION << ") "
-              << "listening on port " << cfg.port
+    std::cout << "opicochat v" << APP_VERSION
+              << " listening on port " << cfg.port
               << "  (logs: " << cfg.log_dir << ")\n"
               << "type /help for commands\n";
 
@@ -278,7 +278,7 @@ int main(int argc, char** argv) {
     RingBuffer  history((size_t)std::max(0, cfg.history_size));
 
     append_file(cur_log, now_iso() + " [start] opicochat v" + APP_VERSION
-                        + " (proto v" + PROTO_VERSION + ") port=" + std::to_string(cfg.port) + "\n");
+                        + " port=" + std::to_string(cfg.port) + "\n");
 
     std::vector<ClientInfo> clients;
     clients.reserve(64);
@@ -521,7 +521,6 @@ int main(int argc, char** argv) {
             srv_say("keepalive:       every " + std::to_string(cfg.keepalive_interval_secs)
                 + "s  timeout " + std::to_string(cfg.keepalive_timeout_secs) + "s");
             srv_say("log:             " + cur_log);
-            srv_say("proto version:   " + std::string(PROTO_VERSION));
             return;
         }
 
