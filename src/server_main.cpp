@@ -371,7 +371,7 @@ int main(int argc, char** argv) {
                 lines.push_back(G+"/ban <user> [reason]   /banip <ip> [reason]"+R);
                 lines.push_back(G+"/unban <ip>   /banlist"+R);
                 lines.push_back(G+"/mute <user> [30s/5m/1h]   /unmute <user>"+R);
-                lines.push_back(G+"/info <user>   /alist"+R);
+                lines.push_back(G+"/inspect <user>   /alist"+R);
                 lines.push_back(G+"/announce <text>"+R);
                 lines.push_back(G+"/lockdown on|off       - block new connections"+R);
                 lines.push_back(G+"/health                - server health metrics"+R);
@@ -524,7 +524,7 @@ int main(int argc, char** argv) {
         // Staff-only block (mod or admin)
         static const std::set<std::string> staff_cmds = {
             "/kick","/ban","/banip","/unban","/banlist",
-            "/mute","/unmute","/info","/announce","/health","/alist","/lockdown"
+            "/mute","/unmute","/inspect","/announce","/health","/alist","/lockdown"
         };
         if(!is_staff && staff_cmds.count(slash)) { srv_say("permission denied."); return; }
 
@@ -660,21 +660,47 @@ int main(int argc, char** argv) {
             return;
         }
 
-        if(slash == "/info") {
-            std::string user = next(); if(user.empty()) { srv_say("usage: /info <user>"); return; }
+        if(slash == "/inspect") {
+            std::string user = next(); if(user.empty()) { srv_say("usage: /inspect <user>"); return; }
             bool found = false;
             for(auto& c : clients) {
                 if(!c.authed || c.username != user) continue;
-                auto mins = std::chrono::duration_cast<std::chrono::minutes>(
-                    clk::now() - c.connect_time).count();
-                std::string ping_s = c.last_ping_ms >= 0 ? std::to_string(c.last_ping_ms)+"ms" : "?";
-                srv_say(user
-                    + "  ip="      + c.ip
-                    + "  color="   + (c.color_hex.empty() ? "(auto)" : c.color_hex)
-                    + "  role="    + (c.is_admin ? "admin" : c.is_mod ? "mod" : "user")
-                    + "  version=" + (c.version.empty() ? "?" : "v"+c.version)
-                    + "  online="  + std::to_string(mins) + "m"
-                    + "  ping="    + ping_s);
+                auto now = clk::now();
+                auto total_secs = std::chrono::duration_cast<std::chrono::seconds>(now - c.connect_time).count();
+                std::string uptime;
+                if(total_secs < 60) uptime = std::to_string(total_secs) + "s";
+                else if(total_secs < 3600) uptime = std::to_string(total_secs/60) + "m " + std::to_string(total_secs%60) + "s";
+                else uptime = std::to_string(total_secs/3600) + "h " + std::to_string((total_secs%3600)/60) + "m";
+
+                std::string role = c.is_admin ? "admin" : c.is_mod ? "mod" : "user";
+                std::string ping_s = c.last_ping_ms >= 0 ? std::to_string(c.last_ping_ms)+"ms" : "unknown";
+
+                // mute status
+                std::string mute_s = "no";
+                auto mit = msg_rate.find(user);
+                if(mit != msg_rate.end() && mit->second.muted) {
+                    auto secs_left = std::chrono::duration_cast<std::chrono::seconds>(mit->second.mute_until - now).count();
+                    mute_s = secs_left > 0 ? "yes (" + std::to_string(secs_left) + "s remaining)" : "yes (expired)";
+                }
+
+                // stealth status (only show to admins)
+                std::string stealth_s = "n/a";
+                if(c.is_admin) {
+                    if(c.stealth_chat && c.stealth_list) stealth_s = "chat+list";
+                    else if(c.stealth_chat) stealth_s = "chat only";
+                    else if(c.stealth_list) stealth_s = "list only";
+                    else stealth_s = "off";
+                }
+
+                srv_say("-- " + user + " --");
+                srv_say("  ip:      " + c.ip);
+                srv_say("  role:    " + role);
+                srv_say("  version: " + (c.version.empty() ? "unknown" : "v"+c.version));
+                srv_say("  color:   " + (c.color_hex.empty() ? "(auto)" : c.color_hex));
+                srv_say("  online:  " + uptime);
+                srv_say("  ping:    " + ping_s);
+                srv_say("  muted:   " + mute_s);
+                if(c.is_admin) srv_say("  stealth: " + stealth_s);
                 found = true; break;
             }
             if(!found) srv_say("no such user: " + user);

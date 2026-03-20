@@ -1,5 +1,8 @@
 # changelog
 
+## v1.4
+- **/inspect** — renamed from `/info` (`/lookup` in docs). now shows ip, role, version, color, uptime, ping, mute status, and stealth status (stealth only shown to admins)
+
 ## v1.3
 - updated readme: version enforcement docs, macos arm only note, client logging, icons
 - windows executables have icons embedded (opicochat.ico / opicochatserver.ico)

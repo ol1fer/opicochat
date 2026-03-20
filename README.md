@@ -185,7 +185,7 @@ key fields:
 | `/mute <user> [duration]` | mute a user. duration: `30s`, `5m`, `1h` (default 1m) |
 | `/unmute <user>` | remove a mute |
 | `/mutelist` | list currently muted users |
-| `/lookup <user>` | show ip and role info |
+| `/inspect <user>` | show ip, role, version, uptime, ping, mute status, stealth status |
 | `/motd <text>` | update the message of the day |
 | `/topic <text>` | set the channel topic |
 | `/health` | show server stats (uptime, connections, bans, keepalive, etc.) |
