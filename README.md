@@ -13,12 +13,14 @@ works on linux, windows, and macos (arm64). the windows executables have icons e
 - **stealth mode** — admins can go invisible in `/list` and chat (other admins still see a grey `a` badge)
 - **version enforcement** — server rejects clients on a different version by default (configurable)
 - **rate limiting** — per-ip connection rate and concurrency limits. hitting the rate limit blocks that ip for a configurable duration
-- **keepalive** — server pings clients on a configurable interval and kicks unresponsive ones
+- **keepalive** — server pings clients on a configurable interval and disconnects unresponsive ones
 - **lockdown mode** — `/lockdown on` blocks all new connections instantly
 - **message history** — optional replay of recent messages on join (default: 0 / disabled for privacy)
-- **private messages** — `/dm <user> <message>`
+- **private messages** — `/dm <user> <message>`. users can also `/dm server` to message the server console directly, and the server operator can `/dm <user>` back
+- **banned usernames** — configurable list of usernames blocked at login (`banned_names` in server config, default: `admin,mod`). `server` is always blocked
+- **silent kick/ban** — `/skick` and `/sban` remove users without a public announcement
 - **mute** — admins/mods can mute users with optional duration
-- **server-side commands** — `/nick`, `/me`, `/motd`, `/topic`, `/kick`, `/ban`, `/mute` and more
+- **server-side commands** — `/nick`, `/me`, `/motd`, `/kick`, `/ban`, `/mute` and more
 - **client logging** — optionally write received chat to a local log file, toggle with `/log on|off` or in settings
 - **pause/play** — `/pause` buffers incoming chat while you look something up, `/play` replays it
 - **server list with live ping** — saved servers are pinged on the connect screen showing latency, user count, and whether a password is required
@@ -26,7 +28,7 @@ works on linux, windows, and macos (arm64). the windows executables have icons e
 - **per-user colors** — optional `#rrggbb` hex color per username (deterministic fallback color if none set)
 - **ignore list** — hide messages from specific users client-side
 - **saved usernames & servers** — store multiple usernames with colors and servers with passwords/keys
-- **self-update** — `/updateclient` and `/updateserver` check github for a newer release and apply it in-place. linux/macos replace atomically; windows writes a self-deleting `update.bat`
+- **self-update** — `/updateclient` and `/updateserver` check github for a newer release and apply it in-place. linux/macos replace atomically; windows writes a self-deleting updater batch file
 
 ---
 
@@ -91,9 +93,13 @@ to make yourself admin while testing:
 port=24816
 server_name=opico chat
 server_name_color=            # optional #rrggbb shown in client server list
-motd=                         # message of the day (sent to clients on join)
+motd=                         # message of the day (sent to clients on join, saved when set via /motd)
 password_enabled=0
 password=
+
+# banned usernames (always blocked at login, case-insensitive, comma-separated)
+# "server" is always blocked regardless of this list
+banned_names=admin,mod
 
 # version enforcement
 allow_version_mismatch=0      # 0 = reject clients on a different version (recommended)
@@ -114,7 +120,7 @@ msg_window_secs=4
 
 # keepalive
 keepalive_interval_secs=30    # how often to ping clients
-keepalive_timeout_secs=10     # how long before kicking an unresponsive client
+keepalive_timeout_secs=10     # how long before disconnecting an unresponsive client
 
 # logging
 log_dir=logs
@@ -155,9 +161,9 @@ key fields:
 | command | description |
 |---|---|
 | `/help` | show available commands (staff see extra commands in green) |
-| `/list` | list online users with badges and latency |
-| `/list ping` | same but shows last known ping time |
-| `/dm <user> <msg>` | send a private message |
+| `/list` | list online users with badges |
+| `/list ping` | same but shows last known ping per user |
+| `/dm <user> <msg>` | send a private message. use `/dm server` to message the server console |
 | `/me <text>` | send an action message (`* name text`) |
 | `/nick <name>` | change your username |
 | `/color <#rrggbb>` | change your color |
@@ -185,13 +191,19 @@ key fields:
 
 | command | description |
 |---|---|
-| `/kick <user> [reason]` | disconnect a user |
+| `/kick <user> [reason]` | disconnect a user with a public announcement |
+| `/skick <user>` | silently disconnect a user (shows as disconnected, no announcement) |
+| `/ban <user> [reason]` | ban a user by ip with a public announcement |
+| `/sban <user>` | silently ban a user (shows as disconnected, no announcement) |
+| `/banip <ip> [reason]` | ban a specific ip |
+| `/unban <ip>` | remove a ban |
+| `/banlist` | list banned ips |
 | `/mute <user> [duration]` | mute a user. duration: `30s`, `5m`, `1h` (default 1m) |
 | `/unmute <user>` | remove a mute |
 | `/mutelist` | list currently muted users |
 | `/inspect <user>` | show ip, role, version, uptime, ping, mute status, stealth status |
-| `/motd <text>` | update the message of the day |
-| `/topic <text>` | set the channel topic |
+| `/dm <user> <msg>` | send a direct message to a user (also works from server console) |
+| `/announce <text>` | broadcast a highlighted notice to all users |
 | `/health` | show server stats (uptime, connections, bans, keepalive, etc.) |
 | `/lockdown on\|off` | block / allow new connections |
 
@@ -199,10 +211,7 @@ key fields:
 
 | command | description |
 |---|---|
-| `/ban <user> [reason]` | ban a user by ip |
-| `/banip <ip> [reason]` | ban a specific ip |
-| `/unban <ip>` | remove a ban |
-| `/banlist` | list banned ips |
+| `/motd <text>` | set the message of the day (saved to config, sent to all on join) |
 | `/admin add <user>` | generate an admin key for a user |
 | `/admin remove <user>` | revoke a user's admin |
 | `/admin list` | list all admins |
@@ -210,8 +219,7 @@ key fields:
 | `/mod remove <user>` | revoke a user's mod |
 | `/mod list` | list all mods |
 | `/stealth` | toggle stealth mode (invisible in list and chat; other admins see a grey `a`) |
-| `/reload bans\|admins\|mods` | reload config files without restarting |
-| `/serverinfo` | show server config details |
+| `/reload bans\|admins\|mods\|config` | reload config files without restarting |
 
 ### server console
 
@@ -222,7 +230,7 @@ extra console-only commands:
 | command | description |
 |---|---|
 | `/updateserver` | check github for a newer server version |
-| `/updateserver confirm` | download and apply the update (linux/macos: atomic replace; windows: writes and launches `opicochatserverupdater.bat` then closes) |
+| `/updateserver confirm` | download and apply the update (linux/macos: atomic replace; windows: launches `opicochatserverupdater.bat` then closes) |
 | `/updateserver force` | force update regardless of current version |
 | `/restart` | relaunch the server process in-place after an update (linux/macos only) |
 
@@ -271,7 +279,7 @@ mods cannot go stealth. stealth admins appear as normal users to everyone except
 by default the server rejects clients that don't match its version with an error message showing both versions:
 
 ```
-version mismatch: server v1.3, client v1.2
+version mismatch: server v2.4, client v2.3
 ```
 
 to allow older clients to connect (with a warning instead), set `allow_version_mismatch=1` in `opicochatserver.cfg`.
@@ -289,7 +297,7 @@ every connection uses a fresh x25519 ephemeral key exchange. the resulting share
 - default port: **24816** (ipv4/ipv6 dual-stack)
 - per-ip rate limits enforced on accept: concurrent connections and a per-minute sliding window
 - ips that exceed the rate limit are blocked for `ip_block_duration_secs` (default 5 minutes)
-- a keepalive system pings each client on a staggered schedule and kicks unresponsive ones
+- a keepalive system pings each client on a staggered schedule and disconnects unresponsive ones
 
 ---
 
@@ -299,4 +307,5 @@ every connection uses a fresh x25519 ephemeral key exchange. the resulting share
 - **can't become admin** — make sure the key is saved for the exact `host:port` or enter it via **enter address manually**. check the server still has the key in `admins.cfg`
 - **"version mismatch" on connect** — client and server must be the same version. download the matching release or set `allow_version_mismatch=1` on the server to allow it
 - **history shows 0 messages** — this is intentional by default for privacy. set `history_size=N` in the server config to enable it
+- **motd not showing** — check the server console on startup; it prints the loaded motd if one is set. use `/reload config` to pick up changes without restarting
 - **client log location** — logs go to `logs/client-YYYY-MM-DD-<host>.log` next to the client binary
