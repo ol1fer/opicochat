@@ -1234,6 +1234,34 @@ int main(int argc, char** argv) {
                     std::cout << "could not parse response from github.\n";
                 } else if(latest == APP_VERSION) {
                     std::cout << "already up to date (v" << APP_VERSION << ").\n";
+                    int fc = menu_prompt("options", {{0, "back"}, {1, "force reinstall"}});
+                    if(fc == 1) {
+                        std::string url = update_find_asset_url(json, CLIENT_UPDATE_ASSET);
+                        if(url.empty()) { std::cout << "no binary found for this platform.\n"; continue; }
+                        std::string exe = get_self_exe_path();
+                        if(exe.empty()) { std::cout << "could not determine executable path.\n"; continue; }
+#ifdef _WIN32
+                        std::string bat = update_write_bat(exe, false);
+                        if(bat.empty()) { std::cout << "failed to write updater batch file.\n"; continue; }
+                        update_launch_file(bat);
+                        std::cout << "updater launched. the client will relaunch automatically.\n";
+                        std::exit(0);
+#else
+                        std::string tmp = exe + ".update";
+                        std::cout << "downloading v" << latest << "...\n";
+                        if(!update_download_file(url, tmp)) { std::cout << "download failed.\n"; } else {
+                            std::string msg;
+                            if(update_apply_binary(tmp, exe, msg)) {
+                                std::cout << msg << " relaunching...\n";
+                                { struct termios t; tcgetattr(STDIN_FILENO, &t);
+                                  t.c_lflag |= ICANON | ECHO; t.c_cc[VMIN] = 1; t.c_cc[VTIME] = 0;
+                                  tcsetattr(STDIN_FILENO, TCSAFLUSH, &t); }
+                                execl(exe.c_str(), exe.c_str(), (char*)nullptr);
+                                std::cout << "execl failed — restart manually.\n";
+                            } else { std::cout << "update failed: " << msg << "\n"; }
+                        }
+#endif
+                    }
                 } else {
                     std::string url = update_find_asset_url(json, CLIENT_UPDATE_ASSET);
                     if(url.empty()) {
