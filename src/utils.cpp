@@ -93,11 +93,19 @@ std::string ansi_bold()   { return "\x1b[1m"; }
 
 #ifdef _WIN32
 void enable_windows_ansi() {
+    SetConsoleOutputCP(CP_UTF8);
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
     if(hOut == INVALID_HANDLE_VALUE) return;
     DWORD mode = 0;
     if(!GetConsoleMode(hOut, &mode)) return;
     SetConsoleMode(hOut, mode | 0x0004 | 0x0008); // VIRTUAL_TERMINAL + DISABLE_NEWLINE_AUTO_RETURN
+    // Also enable ANSI on stderr
+    HANDLE hErr = GetStdHandle(STD_ERROR_HANDLE);
+    if(hErr != INVALID_HANDLE_VALUE) {
+        DWORD emode = 0;
+        if(GetConsoleMode(hErr, &emode))
+            SetConsoleMode(hErr, emode | 0x0004 | 0x0008);
+    }
 }
 #endif
 
@@ -369,11 +377,13 @@ std::string update_write_bat(const std::string& exe_path, bool is_server) {
     std::string display = is_server ? "opicochat_server" : "opicochat";
     std::ofstream f(bat_path);
     if(!f) return "";
+    DWORD pid = GetCurrentProcessId();
     f << "@echo off\r\n";
     f << "setlocal EnableDelayedExpansion\r\n";
     f << "set \"EXE=" << exe_path << "\"\r\n";
     f << "set \"OPICO_DL=%EXE%_update.exe\"\r\n";
     f << "set \"URL=" << url << "\"\r\n";
+    f << "set \"OLD_PID=" << pid << "\"\r\n";
     f << "\r\n";
     f << "echo Downloading latest " << display << "...\r\n";
     f << "powershell -NoProfile -Command \"[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%URL%' -OutFile '%OPICO_DL%' -UseBasicParsing\" 2>nul\r\n";
@@ -384,7 +394,14 @@ std::string update_write_bat(const std::string& exe_path, bool is_server) {
     f << "    exit /b 1\r\n";
     f << ")\r\n";
     f << "\r\n";
-    f << "echo Waiting for " << display << " to close...\r\n";
+    f << "echo Waiting for " << display << " to exit...\r\n";
+    f << ":wait_pid\r\n";
+    f << "tasklist /fi \"PID eq %OLD_PID%\" /fo csv 2>nul | find /i \"" << display << "\" >nul 2>&1\r\n";
+    f << "if not errorlevel 1 (\r\n";
+    f << "    timeout /t 1 /nobreak >nul\r\n";
+    f << "    goto wait_pid\r\n";
+    f << ")\r\n";
+    f << "\r\n";
     f << ":waitloop\r\n";
     f << "move /y \"%OPICO_DL%\" \"%EXE%\" >nul 2>&1\r\n";
     f << "if errorlevel 1 (\r\n";

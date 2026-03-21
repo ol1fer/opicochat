@@ -1,5 +1,9 @@
 # changelog
 
+## v3.2
+- **windows console UTF-8** — `SetConsoleOutputCP(CP_UTF8)` now called on startup so em-dashes and other unicode characters render correctly instead of as `ÔÇö`. also enables ANSI processing on stderr so coloured error messages work correctly
+- **windows updater port fix** — batch file now embeds the old server's PID and waits for that process to actually exit (via `tasklist`) before relaunching. previously the file-move check could pass while the old process was still running and holding the port, causing the relaunched server to fail with "port already in use"
+
 ## v3.1
 - **connection rejection logging** — server now logs all rejected connection attempts to the console with the reason: lockdown, server full, rate limited, too many connections from ip, bad auth format, invalid/reserved/banned username, ip banned, duplicate username, wrong password, version mismatch
 
