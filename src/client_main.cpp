@@ -17,6 +17,7 @@
 #include "crypto.hpp"
 #include "protocol.hpp"
 #include "utils.hpp"
+#include <future>
 
 #ifdef _WIN32
   #include <conio.h>
@@ -46,9 +47,20 @@ static std::string hp_key(const std::string& host, uint16_t port) {
     return host + ":" + std::to_string(port);
 }
 
+// On Windows, store config beside the exe so it's found regardless of CWD
+// (launching from taskbar/shortcut can set a different working directory).
+// On Linux/macOS, CWD is always the terminal's directory, so use a plain relative path.
+static std::string client_cfg_path() {
+#ifdef _WIN32
+    std::string d = get_exe_dir();
+    if(!d.empty()) return d + "opicochat.cfg";
+#endif
+    return "opicochat.cfg";
+}
+
 static void save_cfg(const ClientConfig& cc) {
     Ini ini = ClientConfig::to_ini(cc);
-    std::ofstream f("opicochat.cfg");
+    std::ofstream f(client_cfg_path());
     f << ini.serialize();
 }
 
@@ -1074,7 +1086,7 @@ int main(int argc, char** argv) {
 
     ClientConfig cfg;
     {
-        std::ifstream f("opicochat.cfg");
+        std::ifstream f(client_cfg_path());
         if(f.good()) {
             Ini ini;
             std::string ln;
@@ -1090,8 +1102,24 @@ int main(int argc, char** argv) {
 
     std::set<std::string> ignored;
 
+    // Background version check on launch (2s timeout)
+    std::string ver_notice;
+    if(cfg.check_version_on_launch) {
+        auto fut = std::async(std::launch::async, []() -> std::string {
+            std::string json = update_http_get(GITHUB_RELEASES_API);
+            if(json.empty()) return "";
+            return update_get_latest_tag(json);
+        });
+        if(fut.wait_for(seconds(2)) == std::future_status::ready) {
+            std::string tag = fut.get();
+            if(!tag.empty() && tag[0] == 'v') tag = tag.substr(1);
+            if(!tag.empty() && tag != APP_VERSION)
+                ver_notice = " \033[31m(outdated — latest v" + tag + ")\033[0m";
+        }
+    }
+
     while(true) {
-        int c = menu_prompt(std::string("opicochat v") + APP_VERSION, {
+        int c = menu_prompt(std::string("opicochat v") + APP_VERSION + ver_notice, {
             {1, "connect"},
             {2, "settings"},
             {3, "check for updates"},
@@ -1325,6 +1353,7 @@ int main(int argc, char** argv) {
                     {3, "toggle timestamps (currently " + std::string(cfg.show_timestamps ? "on" : "off") + ")"},
                     {4, "toggle show server IP in list (currently " + std::string(cfg.show_server_ip ? "on" : "off") + ")"},
                     {5, "toggle client logging (currently " + std::string(cfg.client_log_enabled ? "on" : "off") + ")"},
+                    {6, "toggle version check on launch (currently " + std::string(cfg.check_version_on_launch ? "on" : "off") + ")"},
                 });
                 if(sc == 0) break;
 
@@ -1455,6 +1484,10 @@ int main(int argc, char** argv) {
                 else if(sc == 5) {
                     cfg.client_log_enabled = !cfg.client_log_enabled; save_cfg(cfg);
                     std::cout << "client logging " << (cfg.client_log_enabled ? "on" : "off") << "\n";
+                }
+                else if(sc == 6) {
+                    cfg.check_version_on_launch = !cfg.check_version_on_launch; save_cfg(cfg);
+                    std::cout << "version check on launch " << (cfg.check_version_on_launch ? "on" : "off") << "\n";
                 }
             }
         }

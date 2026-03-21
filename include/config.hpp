@@ -47,9 +47,10 @@ struct ClientConfig {
     std::string last_host;
     uint16_t    last_port     = 24816;
     std::string last_username;
-    bool        show_timestamps    = true;
-    bool        show_server_ip    = false;  // show host:port in server list
-    bool        client_log_enabled = false; // write received chat to a local log file
+    bool        show_timestamps         = true;
+    bool        show_server_ip          = false;  // show host:port in server list
+    bool        client_log_enabled      = false;  // write received chat to a local log file
+    bool        check_version_on_launch = true;   // check for updates on startup
 
     // {name, "#RRGGBB" or ""}
     std::vector<std::pair<std::string,std::string>> usernames;

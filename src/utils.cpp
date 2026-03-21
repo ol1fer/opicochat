@@ -246,6 +246,19 @@ std::string get_self_exe_path() {
 #endif
 }
 
+std::string get_exe_dir() {
+    std::string exe = get_self_exe_path();
+    if(exe.empty()) return "";
+#ifdef _WIN32
+    auto sep = exe.rfind('\\');
+    if(sep != std::string::npos) return exe.substr(0, sep + 1);
+#else
+    auto sep = exe.rfind('/');
+    if(sep != std::string::npos) return exe.substr(0, sep + 1);
+#endif
+    return "";
+}
+
 std::string update_http_get(const std::string& url) {
 #ifdef _WIN32
     std::string cmd = "powershell -NoProfile -Command \""

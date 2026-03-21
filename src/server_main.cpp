@@ -1396,6 +1396,13 @@ int main(int argc, char** argv) {
                         send_to(c,"AUTH_FAIL wrong password"); disc=true; break;
                     }
 
+                    // Version check before auth completes (so no join broadcast on reject)
+                    if(!version.empty() && version != APP_VERSION && !cfg.allow_version_mismatch) {
+                        send_to(c, "AUTH_FAIL version mismatch: server v"
+                            +std::string(APP_VERSION)+", client v"+version);
+                        disc=true; break;
+                    }
+
                     if(has_color) c.color_hex=normalize_hex_hash(color);
                     c.username=user; c.version=version; c.authed=true;
 
@@ -1418,11 +1425,7 @@ int main(int argc, char** argv) {
                     send_to(c, "AUTH_OK" + role_tag);
 
                     if(!version.empty() && version != APP_VERSION) {
-                        if(!cfg.allow_version_mismatch) {
-                            send_to(c, "AUTH_FAIL version mismatch: server v"
-                                +std::string(APP_VERSION)+", client v"+version);
-                            disc=true; break;
-                        }
+                        // allow_version_mismatch is true here (mismatch+strict was rejected above)
                         send_notice(c,"warning: version mismatch (server v"
                             +std::string(APP_VERSION)+", you v"+version+")");
                     }

@@ -44,6 +44,8 @@ bool ensure_terminal_attached(int argc, char** argv);
 // Self-update helpers
 // Returns the absolute path of the running executable
 std::string get_self_exe_path();
+// Returns the directory containing the running executable (with trailing separator), or ""
+std::string get_exe_dir();
 // Fetches URL as text (uses curl on Linux/mac, powershell on Windows)
 std::string update_http_get(const std::string& url);
 // Extracts "tag_name" string from GitHub releases JSON (e.g. "v1.5")

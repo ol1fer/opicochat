@@ -1,5 +1,18 @@
 # changelog
 
+## v2.6
+- **windows config path fix** — client config (`opicochat.cfg`) is now read and written relative to the executable directory on Windows, not the working directory. fixes config not loading when the client is launched from a taskbar pin, shortcut, or non-English system where the working directory may differ from the exe location
+- **version mismatch no disconnect broadcast** — when a client is rejected for version mismatch, the server no longer broadcasts `[server] username disconnected` to all users since the client never actually joined
+- **version check on launch** — client checks github for a newer version at startup and shows `(outdated — latest vX.Y)` in red next to the version number if behind. toggleable in settings (default on)
+
+## v2.5
+- **mod commands blue in /help** — staff/mod commands shown in blue, admin-only commands stay green. `/alist` moved to its own line
+- **UTC timestamps** — server timestamps messages in UTC; client converts to local timezone on display so each user sees their own local time
+- **disconnect reasons** — clients timing out receive `timed out` as the disconnect reason. server console shows `(timed out)`, `(kicked)`, or `(banned)` after disconnect messages
+- **`/restartserver`** (admin only) — soft in-process restart: disconnects all clients, reloads config/admins/mods/bans, keeps the listening socket open with no process restart needed
+- **motd colour** — `/motdcolour <#rrggbb>` (or `/motdcolor`) sets the colour the MOTD is rendered in on clients. `clear` removes it. saved to config
+- **`/key add` auto-save server** — when used on a manually-entered connection, automatically adds the server to the saved server list before saving the key
+
 ## v2.4
 - **windows updater** — relaunch prompt now defaults to yes (`[Y/n]`); pressing enter relaunches automatically
 

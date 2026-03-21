@@ -169,9 +169,10 @@ ClientConfig ClientConfig::from_ini(const Ini& ini) {
     c.last_host       = ini.get("last_host", "");
     c.last_port       = (uint16_t)ini.get_int("last_port", 24816);
     c.last_username   = ini.get("last_username", "");
-    c.show_timestamps     = ini.get_bool("show_timestamps",     true);
-    c.show_server_ip      = ini.get_bool("show_server_ip",      false);
-    c.client_log_enabled  = ini.get_bool("client_log_enabled",  false);
+    c.show_timestamps          = ini.get_bool("show_timestamps",          true);
+    c.show_server_ip           = ini.get_bool("show_server_ip",           false);
+    c.client_log_enabled       = ini.get_bool("client_log_enabled",       false);
+    c.check_version_on_launch  = ini.get_bool("check_version_on_launch",  true);
 
     // usernames: "name#HEX;name2;..."
     {
@@ -207,9 +208,10 @@ Ini ClientConfig::to_ini(const ClientConfig& c) {
     ini.set("last_host",     c.last_host);
     ini.set("last_port",     std::to_string(c.last_port));
     ini.set("last_username", c.last_username);
-    ini.set("show_timestamps",    c.show_timestamps    ? "1" : "0");
-    ini.set("show_server_ip",     c.show_server_ip     ? "1" : "0");
-    ini.set("client_log_enabled", c.client_log_enabled ? "1" : "0");
+    ini.set("show_timestamps",          c.show_timestamps          ? "1" : "0");
+    ini.set("show_server_ip",           c.show_server_ip           ? "1" : "0");
+    ini.set("client_log_enabled",       c.client_log_enabled       ? "1" : "0");
+    ini.set("check_version_on_launch",  c.check_version_on_launch  ? "1" : "0");
 
     {
         std::string u;
