@@ -1,5 +1,8 @@
 # changelog
 
+## v3.3
+- **windows updater port fix (take 2)** — root cause identified: `system()` launches the batch process with handle inheritance enabled, so the batch inherits the server's listening socket handle and keeps the port bound even after the server exits. fixed by using `CreateProcess` with `bInheritHandles=FALSE` so no handles are passed to the batch process
+
 ## v3.2
 - **windows console UTF-8** — `SetConsoleOutputCP(CP_UTF8)` now called on startup so em-dashes and other unicode characters render correctly instead of as `ÔÇö`. also enables ANSI processing on stderr so coloured error messages work correctly
 - **windows updater port fix** — batch file now embeds the old server's PID and waits for that process to actually exit (via `tasklist`) before relaunching. previously the file-move check could pass while the old process was still running and holding the port, causing the relaunched server to fail with "port already in use"

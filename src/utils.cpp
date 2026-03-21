@@ -434,8 +434,18 @@ std::string update_write_bat(const std::string& exe_path, bool is_server) {
 
 void update_launch_file(const std::string& path) {
 #ifdef _WIN32
-    std::string cmd = "start \"\" \"" + path + "\"";
-    system(cmd.c_str());
+    // Use CreateProcess with bInheritHandles=FALSE so the batch process does not
+    // inherit the server's listening socket handle. If it did, the socket would
+    // stay bound even after the server exits, preventing the relaunched server
+    // from binding the same port.
+    STARTUPINFOA si{}; si.cb = sizeof(si);
+    PROCESS_INFORMATION pi{};
+    std::string cmd = "cmd.exe /c \"\"" + path + "\"\"";
+    if(CreateProcessA(nullptr, &cmd[0], nullptr, nullptr,
+                      FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &si, &pi)) {
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
 #else
     (void)path;
 #endif
