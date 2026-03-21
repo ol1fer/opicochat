@@ -1,5 +1,8 @@
 # changelog
 
+## v3.7
+- **`/shutdown` and `/restart` as admin commands** — both can now be run by admins from the client (not just the server console). `/shutdown` and `/restart` broadcast a notice to all users before acting. on Windows `/restart` directs to `/restartserver` (in-process restart)
+
 ## v3.6
 - **linux terminal restore on `/restart`** — the server console puts the terminal into raw mode (no echo, no canonical). `execl()` replaces the process without running destructors, leaving the terminal broken. the original terminal settings are now saved at startup and restored with `tcsetattr` before `execl()` is called
 

@@ -446,9 +446,11 @@ int main(int argc, char** argv) {
                 lines.push_back(G+"/mod add|remove|list <user>"+R);
                 lines.push_back(G+"/reload bans|admins|mods|config"+R);
                 lines.push_back(G+"/restartserver         - soft restart (disconnect all, reload config)"+R);
+                lines.push_back(G+"/restart               - hard restart: replace process in-place (linux/mac)"+R);
+                lines.push_back(G+"/shutdown              - stop the server"+R);
                 lines.push_back(G+"/updatecheck           - check if a newer server version is available"+R);
             }
-            if(!from) lines.push_back("/say <text>  /shutdown  /status  /updateserver [confirm|force]  /restart");
+            if(!from) lines.push_back("/say <text>  /status  /updateserver [confirm|force]");
             for(auto& l : lines) srv_say(l);
             return;
         }
@@ -608,7 +610,8 @@ int main(int argc, char** argv) {
 
         // Admin-only block
         static const std::set<std::string> admin_cmds = {
-            "/admin","/mod","/reload","/stealth","/motdcolour","/motdcolor","/restartserver","/updatecheck"
+            "/admin","/mod","/reload","/stealth","/motdcolour","/motdcolor",
+            "/restartserver","/updatecheck","/shutdown","/stop","/restart"
         };
         if(!is_admin && admin_cmds.count(slash)) { srv_say("permission denied."); return; }
         if(!is_admin && slash == "/motd" && from) {
@@ -1041,6 +1044,29 @@ int main(int argc, char** argv) {
             return;
         }
 
+        if(slash == "/restart") {
+#ifdef _WIN32
+            srv_say("use /restartserver for an in-process restart on Windows.");
+#else
+            std::string exe = get_self_exe_path();
+            if(exe.empty()) { srv_say("could not determine server executable path."); return; }
+            broadcast(proto::make_notice("[server] server is restarting..."));
+            srv_say("restarting...");
+            tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+            for(auto& c : clients) closesocket_cross(c.s);
+            clients.clear();
+            closesocket_cross(lsock);
+            execl(exe.c_str(), exe.c_str(), (char*)nullptr);
+            srv_say("execl failed — restart manually.");
+#endif
+            return;
+        }
+
+        if(slash == "/shutdown" || slash == "/stop") {
+            broadcast(proto::make_notice("[server] server is shutting down."));
+            srv_print("shutting down..."); running = false; return;
+        }
+
         // Console-only
         if(!from) {
             if(slash == "/say") {
@@ -1123,31 +1149,6 @@ int main(int argc, char** argv) {
                 return;
             }
 
-            if(slash == "/restart") {
-                if(from) { srv_say("this command must be run from the server console."); return; }
-#ifdef _WIN32
-                srv_say("use the updater batch file to restart on Windows.");
-#else
-                std::string exe = get_self_exe_path();
-                if(exe.empty()) { srv_say("could not determine server executable path."); return; }
-                srv_say("restarting...");
-                // Restore terminal before execl — the console thread put it in
-                // raw mode and execl won't run destructors to restore it
-                tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
-                // Close all sockets before execl so the new process doesn't
-                // inherit them — inherited fds would keep the port bound
-                for(auto& c : clients) closesocket_cross(c.s);
-                clients.clear();
-                closesocket_cross(lsock);
-                execl(exe.c_str(), exe.c_str(), (char*)nullptr);
-                srv_say("execl failed — restart manually.");
-#endif
-                return;
-            }
-
-            if(slash == "/shutdown" || slash == "/stop") {
-                srv_print("shutting down..."); running = false; return;
-            }
             if(slash == "/status") {
                 int cnt = 0; for(auto& c : clients) if(c.authed) ++cnt;
                 srv_say(std::to_string(cnt) + " user(s) online, "
