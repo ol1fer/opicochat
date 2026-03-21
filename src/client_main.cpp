@@ -374,26 +374,26 @@ static bool run_chat(const std::string& host, uint16_t port,
                 }
                 if(line.rfind("AUTH_FAIL", 0) == 0) {
                     if(line.find("wrong password") != std::string::npos) {
-                        std::cout << "incorrect password.\n";
+                        std::cout << "\033[31mincorrect password.\033[0m\n";
                         std::string hpk = hp_key(host, port);
                         if(!stored_password.empty()) {
                             cfg.server_passwords.erase(hpk);
                             save_cfg(cfg);
                         }
                     } else {
-                        std::cout << (line.size() > 10 ? line.substr(10) : line) << "\n";
+                        std::cout << "\033[31m" << (line.size() > 10 ? line.substr(10) : line) << "\033[0m\n";
                     }
                     closesocket_cross(s); return false;
                 }
                 if(line.rfind("ERROR ", 0) == 0) {
-                    std::cout << line.substr(6) << "\n";
+                    std::cout << "\033[31m" << line.substr(6) << "\033[0m\n";
                     closesocket_cross(s); return false;
                 }
             }
             if(disc) break;
         }
         if(!got_ok) {
-            std::cout << "error: auth failed or server unreachable\n";
+            std::cout << "\033[31merror: auth failed or server unreachable\033[0m\n";
             closesocket_cross(s); return false;
         }
         std::cout << "connected as " << colorize_name(username, color_hex) << ansi_reset();
@@ -443,7 +443,7 @@ static bool run_chat(const std::string& host, uint16_t port,
         while(running) {
             if(!net::recv_line(s, l, 500, d, &cipher)) {
                 if(d) {
-                    cli_print("disconnected.");
+                    cli_print("\033[31mdisconnected.\033[0m");
                     running = false; q_cv.notify_all();
                 }
                 continue;
@@ -456,7 +456,7 @@ static bool run_chat(const std::string& host, uint16_t port,
             }
 
             if(l.rfind("ERROR ", 0) == 0) {
-                cli_print(l.substr(6));
+                cli_print("\033[31m" + l.substr(6) + "\033[0m");
                 running = false; q_cv.notify_all(); return;
             }
 
