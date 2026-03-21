@@ -281,7 +281,15 @@ int main(int argc, char** argv) {
 
     std::string err;
     socket_t lsock = net::listen_tcp(cfg.port, err);
-    if(lsock == INVALID_SOCKET) { std::cerr << "error: " << err << "\n"; return 1; }
+    if(lsock == INVALID_SOCKET) {
+        std::cerr << "error: " << err << "\n";
+        std::cerr << "port " << cfg.port << " may already be in use — is another server already running?\n";
+#ifdef _WIN32
+        std::cerr << "\npress any key to exit...\n";
+        _getch();
+#endif
+        return 1;
+    }
     std::cout << "opicochat v" << APP_VERSION
               << " listening on port " << cfg.port
               << "  (logs: " << cfg.log_dir << ")\n";

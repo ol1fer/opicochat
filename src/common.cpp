@@ -78,8 +78,13 @@ socket_t listen_tcp(uint16_t port, std::string& err) {
             setsockopt(lsock, IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof(v6only));
 #endif
         }
+#ifdef _WIN32
+        BOOL excl = TRUE;
+        setsockopt(lsock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char*)&excl, sizeof(excl));
+#else
         int opt = 1;
         setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt));
+#endif
         if(::bind(lsock, p->ai_addr, (int)p->ai_addrlen) == 0 &&
            ::listen(lsock, SOMAXCONN) == 0) break;
         closesocket_cross(lsock);

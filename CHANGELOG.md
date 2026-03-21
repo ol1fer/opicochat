@@ -4,6 +4,7 @@
 - **windows config path fix** — client config (`opicochat.cfg`) is now read and written relative to the executable directory on Windows, not the working directory. fixes config not loading when the client is launched from a taskbar pin, shortcut, or non-English system where the working directory may differ from the exe location
 - **version mismatch no disconnect broadcast** — when a client is rejected for version mismatch, the server no longer broadcasts `[server] username disconnected` to all users since the client never actually joined
 - **version check on launch** — client checks github for a newer version at startup and shows `(outdated — latest vX.Y)` in red next to the version number if behind. toggleable in settings (default on)
+- **port conflict detection** — server now uses `SO_EXCLUSIVEADDRUSE` on Windows (instead of `SO_REUSEADDR`) so a second instance cannot silently bind to a port already in use. if the port is taken, a clear error is shown and a "press any key to exit" pause prevents the console window from closing immediately
 
 ## v2.5
 - **mod commands blue in /help** — staff/mod commands shown in blue, admin-only commands stay green. `/alist` moved to its own line
