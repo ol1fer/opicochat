@@ -35,6 +35,7 @@ struct ServerConfig {
     bool        allow_version_mismatch  = false;  // if false, clients on a different version are rejected
     std::string banned_names            = "admin,mod"; // comma-separated usernames blocked at login
     std::string motd_color              = "";          // #RRGGBB shown on MOTD text, or empty
+    bool        check_version_on_launch = true;        // check github for a newer version on startup
 
     static ServerConfig from_ini(const Ini& ini);
     static void         write_default(const std::string& path, const ServerConfig& cfg);

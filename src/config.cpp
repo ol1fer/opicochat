@@ -65,6 +65,7 @@ ServerConfig ServerConfig::from_ini(const Ini& ini) {
     c.allow_version_mismatch  = ini.get_bool("allow_version_mismatch", false);
     c.banned_names            = ini.get("banned_names", "admin,mod");
     c.motd_color              = ini.get("motd_color", "");
+    c.check_version_on_launch = ini.get_bool("check_version_on_launch", true);
     return c;
 }
 
@@ -90,6 +91,7 @@ void ServerConfig::write_default(const std::string& path, const ServerConfig& c)
     f << "allow_version_mismatch="  << (c.allow_version_mismatch ? "1" : "0") << "\n";
     f << "banned_names="            << c.banned_names            << "\n";
     f << "motd_color="              << c.motd_color              << "\n";
+    f << "check_version_on_launch=" << (c.check_version_on_launch ? "1" : "0") << "\n";
 }
 
 void ServerConfig::save(const std::string& path, const ServerConfig& cfg) {
@@ -123,6 +125,7 @@ static void append_missing_server_keys(const std::string& path, const Ini& exist
     add("allow_version_mismatch",  "0");
     add("banned_names",            "admin,mod");
     add("motd_color",              "");
+    add("check_version_on_launch", "1");
 }
 
 ServerConfig ServerConfig::load_or_create(const std::string& path) {

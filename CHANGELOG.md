@@ -1,10 +1,17 @@
 # changelog
 
+## v2.8
+- **server version check on launch** — server checks github for a newer version on startup and prints a warning if out of date. toggleable via `check_version_on_launch` in `opicochatserver.cfg` (default on)
+- **`/updatecheck`** (admin only) — checks github and reports whether the server is current or out of date, showing current and latest versions. if out of date, tells the admin to use `/updateserver` from the console or replace the binary manually
+- **server version in `/health`** — shows the running version at the bottom of the health output. if a version check has been run (on launch or via `/updatecheck`), also shows whether the server is up to date or the latest version number
+
+## v2.7
+- **port conflict detection** — server now uses `SO_EXCLUSIVEADDRUSE` on Windows (instead of `SO_REUSEADDR`) so a second instance cannot silently bind to a port already in use. if the port is taken, a clear error is shown and a "press any key to exit" pause prevents the console window from closing immediately
+
 ## v2.6
 - **windows config path fix** — client config (`opicochat.cfg`) is now read and written relative to the executable directory on Windows, not the working directory. fixes config not loading when the client is launched from a taskbar pin, shortcut, or non-English system where the working directory may differ from the exe location
 - **version mismatch no disconnect broadcast** — when a client is rejected for version mismatch, the server no longer broadcasts `[server] username disconnected` to all users since the client never actually joined
 - **version check on launch** — client checks github for a newer version at startup and shows `(outdated — latest vX.Y)` in red next to the version number if behind. toggleable in settings (default on)
-- **port conflict detection** — server now uses `SO_EXCLUSIVEADDRUSE` on Windows (instead of `SO_REUSEADDR`) so a second instance cannot silently bind to a port already in use. if the port is taken, a clear error is shown and a "press any key to exit" pause prevents the console window from closing immediately
 
 ## v2.5
 - **mod commands blue in /help** — staff/mod commands shown in blue, admin-only commands stay green. `/alist` moved to its own line

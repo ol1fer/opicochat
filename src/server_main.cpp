@@ -6,6 +6,7 @@
 #include <deque>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <iostream>
 #include <mutex>
 #include <random>
@@ -295,6 +296,25 @@ int main(int argc, char** argv) {
               << "  (logs: " << cfg.log_dir << ")\n";
     if(!cfg.motd.empty()) std::cout << "motd: " << cfg.motd << "\n";
     std::cout << "type /help for commands\n";
+    std::string cached_latest_version;
+    if(cfg.check_version_on_launch) {
+        using namespace std::chrono_literals;
+        auto ver_fut = std::async(std::launch::async, []() -> std::string {
+            std::string json = update_http_get(GITHUB_RELEASES_API);
+            if(json.empty()) return "";
+            return update_get_latest_tag(json);
+        });
+        if(ver_fut.wait_for(2s) == std::future_status::ready) {
+            std::string tag = ver_fut.get();
+            if(!tag.empty() && tag[0] == 'v') tag = tag.substr(1);
+            if(!tag.empty()) {
+                cached_latest_version = tag;
+                if(tag != APP_VERSION)
+                    std::cout << "\033[33m[!] server out of date (v" << APP_VERSION
+                              << " — latest v" << tag << ") — type /updateserver to update\033[0m\n";
+            }
+        }
+    }
 
     std::string cur_date  = today_date();
     std::string cur_log   = unique_log_path(cfg.log_dir, cur_date);
@@ -425,6 +445,7 @@ int main(int argc, char** argv) {
                 lines.push_back(G+"/mod add|remove|list <user>"+R);
                 lines.push_back(G+"/reload bans|admins|mods|config"+R);
                 lines.push_back(G+"/restartserver         - soft restart (disconnect all, reload config)"+R);
+                lines.push_back(G+"/updatecheck           - check if a newer server version is available"+R);
             }
             if(!from) lines.push_back("/say <text>  /shutdown  /status  /updateserver [confirm|force]  /restart");
             for(auto& l : lines) srv_say(l);
@@ -555,6 +576,16 @@ int main(int argc, char** argv) {
             srv_say("keepalive:       every " + std::to_string(cfg.keepalive_interval_secs)
                 + "s  timeout " + std::to_string(cfg.keepalive_timeout_secs) + "s");
             srv_say("log:             " + cur_log);
+            {
+                std::string ver_line = "version:         v" + std::string(APP_VERSION);
+                if(!cached_latest_version.empty()) {
+                    if(cached_latest_version != APP_VERSION)
+                        ver_line += "  \033[33m(latest v" + cached_latest_version + " — out of date)\033[0m";
+                    else
+                        ver_line += "  \033[32m(up to date)\033[0m";
+                }
+                srv_say(ver_line);
+            }
             return;
         }
 
@@ -576,7 +607,7 @@ int main(int argc, char** argv) {
 
         // Admin-only block
         static const std::set<std::string> admin_cmds = {
-            "/admin","/mod","/reload","/stealth","/motdcolour","/motdcolor","/restartserver"
+            "/admin","/mod","/reload","/stealth","/motdcolour","/motdcolor","/restartserver","/updatecheck"
         };
         if(!is_admin && admin_cmds.count(slash)) { srv_say("permission denied."); return; }
         if(!is_admin && slash == "/motd" && from) {
@@ -907,6 +938,27 @@ int main(int argc, char** argv) {
             broadcast(proto::make_notice("[server] server is restarting..."));
             restart_req = true;
             srv_say("soft restart initiated.");
+            return;
+        }
+
+        if(slash == "/updatecheck") {
+            srv_say("checking for updates...");
+            std::string json = update_http_get(GITHUB_RELEASES_API);
+            if(json.empty()) { srv_say("failed to reach github. check curl/powershell is available."); return; }
+            std::string tag = update_get_latest_tag(json);
+            std::string latest = tag;
+            if(!latest.empty() && latest[0] == 'v') latest = latest.substr(1);
+            if(latest.empty()) { srv_say("could not parse response from github."); return; }
+            cached_latest_version = latest;
+            if(latest == APP_VERSION) {
+                srv_say("server is up to date (v" + std::string(APP_VERSION) + ").");
+            } else {
+                srv_say("server is out of date — current: v" + std::string(APP_VERSION) + "  latest: v" + latest);
+                if(from)
+                    srv_say("to update, use /updateserver from the server console, or replace the binary manually.");
+                else
+                    srv_say("run /updateserver confirm to apply the update.");
+            }
             return;
         }
 

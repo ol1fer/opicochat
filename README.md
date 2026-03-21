@@ -104,6 +104,7 @@ banned_names=admin,mod
 # version enforcement
 allow_version_mismatch=0      # 0 = reject clients on a different version (recommended)
                               # 1 = allow with a warning notice
+check_version_on_launch=1     # check github for a newer server version on startup (0 to disable)
 
 # connection limits
 max_concurrent_per_ip=5       # max simultaneous connections from one ip
@@ -220,6 +221,7 @@ key fields:
 | `/mod list` | list all mods |
 | `/stealth` | toggle stealth mode (invisible in list and chat; other admins see a grey `a`) |
 | `/reload bans\|admins\|mods\|config` | reload config files without restarting |
+| `/updatecheck` | check github for a newer server version and report status |
 
 ### server console
 
