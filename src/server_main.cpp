@@ -1342,10 +1342,12 @@ int main(int argc, char** argv) {
                 if(getnameinfo((sockaddr*)&ss,slen,host,sizeof(host),nullptr,0,NI_NUMERICHOST)==0)
                     ip=host;
                 if(lockdown) {
+                    srv_print("[reject] " + ip + " — lockdown");
                     net::send_line(cs,"ERROR server is in lockdown, try again later");
                     closesocket_cross(cs); goto after_accept;
                 }
                 if((int)clients.size()>=cfg.max_total_conn) {
+                    srv_print("[reject] " + ip + " — server full");
                     net::send_line(cs,"ERROR server full"); closesocket_cross(cs); goto after_accept;
                 }
                 // Check temporary IP block (from rate-limit enforcement)
@@ -1354,6 +1356,7 @@ int main(int argc, char** argv) {
                   if(bit!=ip_blocked.end()) {
                       if(now < bit->second) {
                           auto secs=std::chrono::duration_cast<std::chrono::seconds>(bit->second-now).count();
+                          srv_print("[reject] " + ip + " — still rate limited (" + std::to_string(secs) + "s remaining)");
                           net::send_line(cs,"ERROR rate limited, try again in "+std::to_string(secs)+"s");
                           closesocket_cross(cs); goto after_accept;
                       } else {
@@ -1363,6 +1366,7 @@ int main(int argc, char** argv) {
                 }
                 { int conc=0; for(auto& u:clients) if(u.ip==ip) ++conc;
                   if(conc>=cfg.max_conn_per_ip) {
+                      srv_print("[reject] " + ip + " — too many connections from ip (" + std::to_string(conc) + "/" + std::to_string(cfg.max_conn_per_ip) + ")");
                       net::send_line(cs,"ERROR too many connections from your ip");
                       closesocket_cross(cs); goto after_accept; } }
                 { auto& dq=ip_rate[ip]; auto now=clk::now();
@@ -1430,34 +1434,45 @@ int main(int argc, char** argv) {
                     std::string user,pass,color,key,version;
                     bool has_color=false,has_key=false;
                     if(!proto::parse_auth(line,user,pass,color,has_color,key,has_key,version)) {
+                        srv_print("[reject] " + c.ip + " — bad auth format");
                         send_to(c,"ERROR bad auth format"); disc=true; break;
                     }
                     user=trim(user);
                     if(!is_valid_username(user)) {
+                        srv_print("[reject] " + c.ip + " (\"" + user + "\") — invalid username");
                         send_to(c,"AUTH_FAIL invalid username"); disc=true; break;
                     }
                     if(is_reserved_name(user)) {
+                        srv_print("[reject] " + c.ip + " (\"" + user + "\") — reserved username");
                         send_to(c,"AUTH_FAIL reserved username"); disc=true; break;
                     }
                     {
                         std::string low = user;
                         for(auto& ch : low) ch = (char)std::tolower((unsigned char)ch);
                         if(banned_names_set.count(low)) {
+                            srv_print("[reject] " + c.ip + " (\"" + user + "\") — banned username");
                             send_to(c,"AUTH_FAIL reserved username"); disc=true; break;
                         }
                     }
                     if(auto it=g_ban_ips.find(c.ip);it!=g_ban_ips.end()) {
+                        srv_print("[reject] " + c.ip + " (\"" + user + "\") — ip banned: " + it->second);
                         send_to(c,"ERROR "+it->second); disc=true; break;
                     }
                     bool dup=false;
                     for(auto& u:clients) if(&u!=&c&&u.authed&&u.username==user){dup=true;break;}
-                    if(dup){send_to(c,"AUTH_FAIL username already in use");disc=true;break;}
+                    if(dup){
+                        srv_print("[reject] " + c.ip + " (\"" + user + "\") — username already in use");
+                        send_to(c,"AUTH_FAIL username already in use");disc=true;break;
+                    }
                     if(cfg.password_enabled&&pass!=cfg.password) {
+                        srv_print("[reject] " + c.ip + " (\"" + user + "\") — wrong password");
                         send_to(c,"AUTH_FAIL wrong password"); disc=true; break;
                     }
 
                     // Version check before auth completes (so no join broadcast on reject)
                     if(!version.empty() && version != APP_VERSION && !cfg.allow_version_mismatch) {
+                        srv_print("[reject] " + c.ip + " (\"" + user + "\") — version mismatch (server v"
+                            + std::string(APP_VERSION) + ", client v" + version + ")");
                         send_to(c, "AUTH_FAIL version mismatch: server v"
                             +std::string(APP_VERSION)+", client v"+version);
                         disc=true; break;

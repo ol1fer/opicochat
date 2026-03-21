@@ -1,5 +1,8 @@
 # changelog
 
+## v3.1
+- **connection rejection logging** — server now logs all rejected connection attempts to the console with the reason: lockdown, server full, rate limited, too many connections from ip, bad auth format, invalid/reserved/banned username, ip banned, duplicate username, wrong password, version mismatch
+
 ## v3.0
 - **red error messages** — auth failures (version mismatch, wrong password, banned, kicked), server-side errors, and unexpected disconnects are now shown in red in the client for easier visibility
 
