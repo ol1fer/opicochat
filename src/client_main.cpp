@@ -1103,7 +1103,8 @@ int main(int argc, char** argv) {
     std::set<std::string> ignored;
 
     // Background version check on launch (2s timeout)
-    std::string ver_notice;
+    std::string ver_color;   // \033[31m = red (outdated), \033[32m = green (up to date), "" = unknown/off
+    std::string ver_suffix;  // " (outdated)" in red, or ""
     if(cfg.check_version_on_launch) {
         auto fut = std::async(std::launch::async, []() -> std::string {
             std::string json = update_http_get(GITHUB_RELEASES_API);
@@ -1113,13 +1114,27 @@ int main(int argc, char** argv) {
         if(fut.wait_for(seconds(2)) == std::future_status::ready) {
             std::string tag = fut.get();
             if(!tag.empty() && tag[0] == 'v') tag = tag.substr(1);
-            if(!tag.empty() && tag != APP_VERSION)
-                ver_notice = " \033[31m(outdated — latest v" + tag + ")\033[0m";
+            if(!tag.empty()) {
+                if(tag != APP_VERSION) {
+                    ver_color  = "\033[31m";
+                    ver_suffix = " \033[31m(outdated)\033[0m";
+                } else {
+                    ver_color = "\033[32m";
+                }
+            }
         }
     }
+    auto make_title = [&]() {
+        std::string t = "opicochat ";
+        if(!ver_color.empty()) t += ver_color;
+        t += "v"; t += APP_VERSION;
+        if(!ver_color.empty()) t += "\033[0m";
+        t += ver_suffix;
+        return t;
+    };
 
     while(true) {
-        int c = menu_prompt(std::string("opicochat v") + APP_VERSION + ver_notice, {
+        int c = menu_prompt(make_title(), {
             {1, "connect"},
             {2, "settings"},
             {3, "check for updates"},
