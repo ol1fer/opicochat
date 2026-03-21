@@ -259,6 +259,7 @@ int main(int argc, char** argv) {
 #else
     if(ensure_terminal_attached(argc, argv)) return 0;
     signal(SIGPIPE, SIG_IGN);
+    termios orig_termios{}; tcgetattr(STDIN_FILENO, &orig_termios);
 #endif
 
     auto cfg = ServerConfig::load_or_create("opicochatserver.cfg");
@@ -1130,6 +1131,9 @@ int main(int argc, char** argv) {
                 std::string exe = get_self_exe_path();
                 if(exe.empty()) { srv_say("could not determine server executable path."); return; }
                 srv_say("restarting...");
+                // Restore terminal before execl — the console thread put it in
+                // raw mode and execl won't run destructors to restore it
+                tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
                 // Close all sockets before execl so the new process doesn't
                 // inherit them — inherited fds would keep the port bound
                 for(auto& c : clients) closesocket_cross(c.s);
