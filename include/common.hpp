@@ -59,6 +59,10 @@ public:
         std::lock_guard<std::mutex> lk(m_);
         return buf_;
     }
+    void reset(size_t new_cap) {
+        std::lock_guard<std::mutex> lk(m_);
+        cap_ = new_cap; buf_.clear();
+    }
 private:
     size_t cap_;
     mutable std::mutex m_;

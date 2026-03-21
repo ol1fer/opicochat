@@ -305,6 +305,7 @@ int main(int argc, char** argv) {
     std::unordered_map<std::string, MsgRateEntry> msg_rate;
     std::string server_motd = cfg.motd;
     std::atomic<bool> running{true};
+    std::atomic<bool> restart_req{false};
     int keepalive_stagger_idx = 0;
     bool lockdown = false;  // when true, new connections are rejected
     std::unordered_map<std::string, clk::time_point> ip_blocked; // IP -> unblock time
@@ -380,7 +381,9 @@ int main(int argc, char** argv) {
         bool is_staff = from ? (from->is_admin || from->is_mod) : true;
 
         if(slash == "/help") {
-            const std::string G = "\033[32m", R = "\033[0m"; // green / reset
+            const std::string G = "\033[32m";  // green — admin only
+            const std::string B = "\033[34m";  // blue  — mod + admin (staff)
+            const std::string R = "\033[0m";
             // Base commands — visible to everyone
             std::vector<std::string> lines = {
                 "/help               - show this",
@@ -395,22 +398,25 @@ int main(int argc, char** argv) {
                 "/dc                 - disconnect",
             };
             if(is_staff) {
-                lines.push_back(G+"/kick <user> [reason]   /skick <user> — silent kick"+R);
-                lines.push_back(G+"/ban <user> [reason]    /sban <user>  — silent ban"+R);
-                lines.push_back(G+"/banip <ip> [reason]    /unban <ip>   /banlist"+R);
-                lines.push_back(G+"/mute <user> [30s/5m/1h]   /unmute <user>"+R);
-                lines.push_back(G+"/inspect <user>   /alist"+R);
-                lines.push_back(G+"/announce <text>"+R);
-                lines.push_back(G+"/lockdown on|off       - block new connections"+R);
-                lines.push_back(G+"/health                - server health metrics"+R);
-                lines.push_back(G+"/dm <user> <text>      - direct message a user"+R);
+                lines.push_back(B+"/kick <user> [reason]   /skick <user> — silent kick"+R);
+                lines.push_back(B+"/ban <user> [reason]    /sban <user>  — silent ban"+R);
+                lines.push_back(B+"/banip <ip> [reason]    /unban <ip>   /banlist"+R);
+                lines.push_back(B+"/mute <user> [30s/5m/1h]   /unmute <user>   /mutelist"+R);
+                lines.push_back(B+"/inspect <user>"+R);
+                lines.push_back(B+"/alist"+R);
+                lines.push_back(B+"/announce <text>"+R);
+                lines.push_back(B+"/lockdown on|off       - block new connections"+R);
+                lines.push_back(B+"/health                - server health metrics"+R);
+                lines.push_back(B+"/dm <user> <text>      - direct message a user"+R);
             }
             if(is_admin) {
                 lines.push_back(G+"/stealth [chat|list] on|off"+R);
                 lines.push_back(G+"/motd <text>           - set motd"+R);
+                lines.push_back(G+"/motdcolour <#rrggbb|clear> - set motd text colour"+R);
                 lines.push_back(G+"/admin add|remove|list <user>"+R);
                 lines.push_back(G+"/mod add|remove|list <user>"+R);
                 lines.push_back(G+"/reload bans|admins|mods|config"+R);
+                lines.push_back(G+"/restartserver         - soft restart (disconnect all, reload config)"+R);
             }
             if(!from) lines.push_back("/say <text>  /shutdown  /status  /updateserver [confirm|force]  /restart");
             for(auto& l : lines) srv_say(l);
@@ -562,7 +568,7 @@ int main(int argc, char** argv) {
 
         // Admin-only block
         static const std::set<std::string> admin_cmds = {
-            "/admin","/mod","/reload","/stealth"
+            "/admin","/mod","/reload","/stealth","/motdcolour","/motdcolor","/restartserver"
         };
         if(!is_admin && admin_cmds.count(slash)) { srv_say("permission denied."); return; }
         if(!is_admin && slash == "/motd" && from) {
@@ -866,10 +872,33 @@ int main(int argc, char** argv) {
                 if(!is_admin) { srv_say("permission denied."); return; }
                 server_motd = text; cfg.motd = text;
                 ServerConfig::save("opicochatserver.cfg", cfg);
-                broadcast(proto::make_motd(text));
+                broadcast(proto::make_motd(text, cfg.motd_color));
                 append_file(cur_log, now_iso() + " [motd] " + text + "\n");
                 srv_say("motd set.");
             }
+            return;
+        }
+
+        if(slash == "/motdcolour" || slash == "/motdcolor") {
+            std::string col = next();
+            if(col.empty() || col == "clear" || col == "off") {
+                cfg.motd_color = "";
+                ServerConfig::save("opicochatserver.cfg", cfg);
+                srv_say("motd colour cleared.");
+            } else {
+                std::string norm = normalize_hex_hash(col);
+                if(norm.empty()) { srv_say("invalid colour. use #rrggbb or clear"); return; }
+                cfg.motd_color = norm;
+                ServerConfig::save("opicochatserver.cfg", cfg);
+                srv_say("motd colour set to " + norm + ".");
+            }
+            return;
+        }
+
+        if(slash == "/restartserver") {
+            broadcast(proto::make_notice("[server] server is restarting..."));
+            restart_req = true;
+            srv_say("soft restart initiated.");
             return;
         }
 
@@ -1192,6 +1221,30 @@ int main(int argc, char** argv) {
           { std::lock_guard<std::mutex> lk(cmd_mtx); tmp.swap(cmd_q); }
           for(auto& fn:tmp) fn(); }
 
+        // Soft restart: disconnect all clients, reload all state, keep lsock open
+        if(restart_req) {
+            restart_req = false;
+            for(auto& c : clients) {
+                if(c.authed) send_to(c, "ERROR server restarting");
+                net::clear_buffer(c.s); closesocket_cross(c.s);
+            }
+            clients.clear();
+            msg_rate.clear(); ip_rate.clear(); ip_blocked.clear();
+            lockdown = false; total_msgs_sent = 0; keepalive_stagger_idx = 0;
+            cfg = ServerConfig::load_or_create("opicochatserver.cfg");
+            server_motd = cfg.motd;
+            banned_names_set = build_banned_names(cfg.banned_names);
+            load_staff("admins.cfg", g_admins);
+            load_staff("mods.cfg",   g_mods);
+            load_bans("banned.cfg");
+            ensure_dir(cfg.log_dir);
+            cur_date = today_date();
+            cur_log  = unique_log_path(cfg.log_dir, cur_date);
+            history.reset((size_t)std::max(0, cfg.history_size));
+            srv_print("[*] server restarted.");
+            append_file(cur_log, now_iso() + " [restart]\n");
+        }
+
         // Keepalive: send PING_USER to each client on schedule; kick if no PONG_USER in time
         {
             auto now = clk::now();
@@ -1376,7 +1429,7 @@ int main(int argc, char** argv) {
 
                     int online=0; for(auto& u:clients) if(u.authed) ++online;
                     send_notice(c,std::to_string(online)+(online==1?" user":" users")+" online");
-                    if(!server_motd.empty()) send_to(c,proto::make_motd(server_motd));
+                    if(!server_motd.empty()) send_to(c,proto::make_motd(server_motd, cfg.motd_color));
 
                     // Seed initial ping so /list ping has a value immediately
                     send_to(c, proto::make_ping_user());
@@ -1530,6 +1583,8 @@ int main(int argc, char** argv) {
             }
 
             if(disc) {
+                if(c.timed_out && c.authed)
+                    send_to(c, "ERROR timed out (no keepalive response)");
                 net::clear_buffer(c.s); closesocket_cross(c.s);
                 msg_rate.erase(c.username);
                 if(c.authed) {
@@ -1538,7 +1593,8 @@ int main(int argc, char** argv) {
                         if(j!=i&&clients[j].authed)
                             net::send_line(clients[j].s,leave,&clients[j].cipher);
                     append_file(cur_log,leave+"\n"); history.push(leave);
-                    srv_print("[-] "+c.username+" disconnected");
+                    std::string reason = c.timed_out ? " (timed out)" : c.was_kicked ? " (kicked)" : c.was_banned ? " (banned)" : "";
+                    srv_print("[-] "+c.username+" disconnected"+reason);
                 }
                 clients.erase(clients.begin()+(ptrdiff_t)i);
                 continue;

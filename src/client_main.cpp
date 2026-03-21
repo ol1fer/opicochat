@@ -218,8 +218,10 @@ static std::string render_line(const std::string& l,
     }
 
     {
-        std::string motd_text;
-        if(proto::parse_motd(l, motd_text)) {
+        std::string motd_text, motd_color;
+        if(proto::parse_motd(l, motd_text, motd_color)) {
+            if(!motd_color.empty())
+                return ansi_for_hex(motd_color) + "~ " + motd_text + " ~" + ansi_reset();
             return ansi_dim() + "~ " + motd_text + " ~" + ansi_reset();
         }
     }
@@ -854,6 +856,14 @@ static bool run_chat(const std::string& host, uint16_t port,
                 if(cur_key.empty()) { cli_print("  no key to save (not admin or mod)"); }
                 else {
                     std::string hpk = hp_key(host, port);
+                    // auto-add server to saved list if not already there
+                    bool in_list = false;
+                    for(auto& sv : cfg.servers)
+                        if(sv.first == host && sv.second == port) { in_list = true; break; }
+                    if(!in_list) {
+                        cfg.servers.push_back({host, port});
+                        cli_print("  server " + hpk + " added to server list");
+                    }
                     cfg.admin_keys[hpk] = cur_key; save_cfg(cfg);
                     cli_print("  " + cur_role + " key saved for " + hpk);
                 }

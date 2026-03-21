@@ -197,11 +197,12 @@ std::string today_date() {
 }
 
 std::string now_iso() {
+    // Always UTC so clients in different timezones can convert to their local time
     std::time_t t = std::time(nullptr); std::tm tm{};
 #ifdef _WIN32
-    localtime_s(&tm, &t);
+    gmtime_s(&tm, &t);
 #else
-    localtime_r(&t, &tm);
+    gmtime_r(&t, &tm);
 #endif
     char buf[32];
     std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tm);
@@ -209,10 +210,33 @@ std::string now_iso() {
 }
 
 std::string format_hhmm(const std::string& iso) {
-    // expects "YYYY-MM-DDTHH:MM:SS", extracts "HH:MM"
-    if(iso.size() >= 16 && iso[10] == 'T')
-        return iso.substr(11, 5);
-    return "";
+    // Parse "YYYY-MM-DDTHH:MM:SS" (UTC) and convert to local HH:MM
+    if(iso.size() < 16 || iso[10] != 'T') return "";
+    std::tm utc_tm{};
+    try {
+        utc_tm.tm_year = std::stoi(iso.substr(0,4)) - 1900;
+        utc_tm.tm_mon  = std::stoi(iso.substr(5,2)) - 1;
+        utc_tm.tm_mday = std::stoi(iso.substr(8,2));
+        utc_tm.tm_hour = std::stoi(iso.substr(11,2));
+        utc_tm.tm_min  = std::stoi(iso.substr(14,2));
+        utc_tm.tm_sec  = (iso.size() >= 19) ? std::stoi(iso.substr(17,2)) : 0;
+    } catch(...) { return iso.substr(11, 5); }
+    utc_tm.tm_isdst = 0;
+#ifdef _WIN32
+    std::time_t t = _mkgmtime(&utc_tm);
+#else
+    std::time_t t = timegm(&utc_tm);
+#endif
+    if(t == (std::time_t)-1) return iso.substr(11, 5);
+    std::tm local_tm{};
+#ifdef _WIN32
+    localtime_s(&local_tm, &t);
+#else
+    localtime_r(&t, &local_tm);
+#endif
+    char buf[6];
+    std::snprintf(buf, sizeof(buf), "%02d:%02d", local_tm.tm_hour, local_tm.tm_min);
+    return buf;
 }
 
 void ensure_dir(const std::string& path) {

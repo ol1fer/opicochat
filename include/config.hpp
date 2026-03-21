@@ -34,6 +34,7 @@ struct ServerConfig {
     int         ip_block_duration_secs  = 300;    // how long to block an IP after rate-limit hit
     bool        allow_version_mismatch  = false;  // if false, clients on a different version are rejected
     std::string banned_names            = "admin,mod"; // comma-separated usernames blocked at login
+    std::string motd_color              = "";          // #RRGGBB shown on MOTD text, or empty
 
     static ServerConfig from_ini(const Ini& ini);
     static void         write_default(const std::string& path, const ServerConfig& cfg);

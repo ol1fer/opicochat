@@ -149,10 +149,23 @@ bool parse_rename(const std::string& l, std::string& a, std::string& b) {
     a=v[0]; b=v[1]; return true;
 }
 
-std::string make_motd(const std::string& t) { return "MOTD "+t; }
-bool parse_motd(const std::string& l, std::string& t) {
+std::string make_motd(const std::string& t, const std::string& color) {
+    if(color.size() == 7 && color[0] == '#')
+        return "MOTD " + color + " " + t;
+    return "MOTD " + t;
+}
+bool parse_motd(const std::string& l, std::string& t, std::string& color) {
     if(l.rfind("MOTD ",0)!=0) return false;
-    t=l.substr(5); return true;
+    std::string body = l.substr(5);
+    // optional leading "#rrggbb " color prefix
+    if(body.size() >= 8 && body[0] == '#' && body[7] == ' ') {
+        color = body.substr(0, 7);
+        t     = body.substr(8);
+    } else {
+        color.clear();
+        t = body;
+    }
+    return true;
 }
 
 std::string make_notice(const std::string& t) { return "NOTICE "+t; }

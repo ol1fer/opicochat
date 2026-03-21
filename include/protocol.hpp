@@ -67,9 +67,9 @@ bool parse_dm(const std::string& line, std::string& iso, std::string& from,
 std::string make_rename(const std::string& old_name, const std::string& new_name);
 bool parse_rename(const std::string& line, std::string& old_name, std::string& new_name);
 
-// MOTD <text>
-std::string make_motd(const std::string& text);
-bool parse_motd(const std::string& line, std::string& text);
+// MOTD [#rrggbb] <text>  — color is optional; if absent, color is empty string
+std::string make_motd(const std::string& text, const std::string& color = "");
+bool parse_motd(const std::string& line, std::string& text, std::string& color);
 
 // NOTICE <text>  (server notice, shown dim)
 std::string make_notice(const std::string& text);
