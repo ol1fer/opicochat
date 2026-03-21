@@ -1,5 +1,8 @@
 # changelog
 
+## v3.5
+- **linux `/restart` port fix** — all client sockets and the listening socket are now closed before `execl()` so the new process doesn't inherit them. previously the inherited `lsock` fd kept the port bound, causing the relaunched server to fail with "port already in use"
+
 ## v3.4
 - **linux `/restart` fix** — after `/updateserver` replaces the binary via `rename()`, the running process's original inode is unlinked and the kernel appends ` (deleted)` to `/proc/self/exe`. `get_self_exe_path()` now strips that suffix so `execl()` gets the real filesystem path and the restart succeeds
 

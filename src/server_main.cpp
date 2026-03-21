@@ -1130,6 +1130,11 @@ int main(int argc, char** argv) {
                 std::string exe = get_self_exe_path();
                 if(exe.empty()) { srv_say("could not determine server executable path."); return; }
                 srv_say("restarting...");
+                // Close all sockets before execl so the new process doesn't
+                // inherit them — inherited fds would keep the port bound
+                for(auto& c : clients) closesocket_cross(c.s);
+                clients.clear();
+                closesocket_cross(lsock);
                 execl(exe.c_str(), exe.c_str(), (char*)nullptr);
                 srv_say("execl failed — restart manually.");
 #endif
