@@ -13,6 +13,9 @@
 ## v3.0
 - **red error messages** — auth failures (version mismatch, wrong password, banned, kicked), server-side errors, and unexpected disconnects are now shown in red in the client for easier visibility
 
+## v2.9
+- **client version display colours** — version number in the main menu is green when up to date and red when outdated. outdated notice shortened to just `(outdated)` in red. default colour when version check is disabled or result is unknown
+
 ## v2.8
 - **server version check on launch** — server checks github for a newer version on startup and prints a warning if out of date. toggleable via `check_version_on_launch` in `opicochatserver.cfg` (default on)
 - **`/updatecheck`** (admin only) — checks github and reports whether the server is current or out of date, showing current and latest versions. if out of date, tells the admin to use `/updateserver` from the console or replace the binary manually

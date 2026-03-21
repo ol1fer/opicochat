@@ -29,6 +29,9 @@ works on linux, windows, and macos (arm64). the windows executables have icons e
 - **ignore list** — hide messages from specific users client-side
 - **saved usernames & servers** — store multiple usernames with colors and servers with passwords/keys
 - **self-update** — `/updateclient` and `/updateserver` check github for a newer release and apply it in-place. linux/macos replace atomically; windows writes a self-deleting updater batch file
+- **version check on launch** — both client and server check github for a newer version on startup and warn if out of date. toggleable in settings / server config (default on)
+- **connection rejection logging** — server logs every rejected connection attempt to the console with the client ip, attempted username, and reason (version mismatch, wrong password, banned, etc.)
+- **red error messages** — auth failures, kicks, bans, and unexpected disconnects are shown in red in the client
 
 ---
 
@@ -152,6 +155,7 @@ key fields:
 - `show_timestamps` — `1` or `0`
 - `show_server_ip` — `1` or `0` (show host:port in server list)
 - `client_log_enabled` — `1` or `0` (write received chat to `logs/client-YYYY-MM-DD-<host>.log`)
+- `check_version_on_launch` — `1` or `0` (check github for a newer client version on startup, default `1`)
 
 ---
 
@@ -205,7 +209,7 @@ key fields:
 | `/inspect <user>` | show ip, role, version, uptime, ping, mute status, stealth status |
 | `/dm <user> <msg>` | send a direct message to a user (also works from server console) |
 | `/announce <text>` | broadcast a highlighted notice to all users |
-| `/health` | show server stats (uptime, connections, bans, keepalive, etc.) |
+| `/health` | show server stats (uptime, connections, bans, keepalive, version, etc.) |
 | `/lockdown on\|off` | block / allow new connections |
 
 ### admin only (shown green in /help)
@@ -311,3 +315,4 @@ every connection uses a fresh x25519 ephemeral key exchange. the resulting share
 - **history shows 0 messages** — this is intentional by default for privacy. set `history_size=N` in the server config to enable it
 - **motd not showing** — check the server console on startup; it prints the loaded motd if one is set. use `/reload config` to pick up changes without restarting
 - **client log location** — logs go to `logs/client-YYYY-MM-DD-<host>.log` next to the client binary
+- **"port already in use" on server start** — another instance of the server is likely already running on that port. on windows the server uses `SO_EXCLUSIVEADDRUSE` to detect this reliably rather than silently allowing two servers to collide
