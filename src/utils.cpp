@@ -249,7 +249,17 @@ std::string get_self_exe_path() {
     return n ? std::string(buf, n) : "";
 #else
     char buf[4096]; ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf)-1);
-    if(n > 0) { buf[n] = '\0'; return buf; }
+    if(n > 0) {
+        buf[n] = '\0';
+        std::string path = buf;
+        // after an in-place update (rename over the running exe), the kernel
+        // marks /proc/self/exe with " (deleted)" — strip it to get the real path
+        const std::string del = " (deleted)";
+        if(path.size() > del.size() &&
+           path.compare(path.size() - del.size(), del.size(), del) == 0)
+            path.erase(path.size() - del.size());
+        return path;
+    }
     return "";
 #endif
 }

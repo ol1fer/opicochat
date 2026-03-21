@@ -1,5 +1,8 @@
 # changelog
 
+## v3.4
+- **linux `/restart` fix** — after `/updateserver` replaces the binary via `rename()`, the running process's original inode is unlinked and the kernel appends ` (deleted)` to `/proc/self/exe`. `get_self_exe_path()` now strips that suffix so `execl()` gets the real filesystem path and the restart succeeds
+
 ## v3.3
 - **windows updater port fix (take 2)** — root cause identified: `system()` launches the batch process with handle inheritance enabled, so the batch inherits the server's listening socket handle and keeps the port bound even after the server exits. fixed by using `CreateProcess` with `bInheritHandles=FALSE` so no handles are passed to the batch process
 
