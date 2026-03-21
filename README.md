@@ -226,6 +226,8 @@ key fields:
 | `/stealth` | toggle stealth mode (invisible in list and chat; other admins see a grey `a`) |
 | `/reload bans\|admins\|mods\|config` | reload config files without restarting |
 | `/updatecheck` | check github for a newer server version and report status |
+| `/supdate stop [force]` | silent update: apply latest version non-interactively then shut down |
+| `/supdate restart [force]` | silent update: apply latest version non-interactively then restart |
 
 ### server console
 

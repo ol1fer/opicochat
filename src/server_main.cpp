@@ -449,6 +449,7 @@ int main(int argc, char** argv) {
                 lines.push_back(G+"/restart               - hard restart: replace process in-place (linux/mac)"+R);
                 lines.push_back(G+"/shutdown              - stop the server"+R);
                 lines.push_back(G+"/updatecheck           - check if a newer server version is available"+R);
+                lines.push_back(G+"/supdate stop|restart [force] - silent update: no prompts"+R);
             }
             if(!from) lines.push_back("/say <text>  /status  /updateserver [confirm|force]");
             for(auto& l : lines) srv_say(l);
@@ -611,7 +612,7 @@ int main(int argc, char** argv) {
         // Admin-only block
         static const std::set<std::string> admin_cmds = {
             "/admin","/mod","/reload","/stealth","/motdcolour","/motdcolor",
-            "/restartserver","/updatecheck","/shutdown","/stop","/restart"
+            "/restartserver","/updatecheck","/shutdown","/stop","/restart","/supdate"
         };
         if(!is_admin && admin_cmds.count(slash)) { srv_say("permission denied."); return; }
         if(!is_admin && slash == "/motd" && from) {
@@ -1058,6 +1059,57 @@ int main(int argc, char** argv) {
             closesocket_cross(lsock);
             execl(exe.c_str(), exe.c_str(), (char*)nullptr);
             srv_say("execl failed — restart manually.");
+#endif
+            return;
+        }
+
+        if(slash == "/supdate") {
+            std::string sub  = next();
+            std::string arg  = next();
+            bool is_force    = (arg == "force");
+            bool do_restart  = (sub == "restart");
+            if(sub != "stop" && sub != "restart") {
+                srv_say("usage: /supdate stop|restart [force]"); return;
+            }
+            srv_say("checking for updates...");
+            std::string json = update_http_get(GITHUB_RELEASES_API);
+            if(json.empty()) { srv_say("failed to reach github. check curl/powershell is available."); return; }
+            std::string tag = update_get_latest_tag(json);
+            std::string latest = tag;
+            if(!latest.empty() && latest[0] == 'v') latest = latest.substr(1);
+            if(latest.empty()) { srv_say("could not parse response from github."); return; }
+            if(!is_force && latest == APP_VERSION) {
+                srv_say("server is up to date (v" + std::string(APP_VERSION) + "). use force to reinstall."); return;
+            }
+            std::string url = update_find_asset_url(json, SERVER_UPDATE_ASSET);
+            if(url.empty()) { srv_say("no binary found for this platform."); return; }
+            std::string exe = get_self_exe_path();
+            if(exe.empty()) { srv_say("could not determine server executable path."); return; }
+            cached_latest_version = latest;
+            broadcast(proto::make_notice("[server] server is updating to v" + latest
+                + (do_restart ? " and will restart." : " and will shut down.")));
+            srv_say("updating to v" + latest + (do_restart ? " and restarting..." : " and stopping..."));
+#ifdef _WIN32
+            std::string bat = update_write_bat(exe, true, true, do_restart);
+            if(bat.empty()) { srv_say("failed to write updater batch file."); return; }
+            update_launch_file(bat);
+            running = false;
+#else
+            std::string tmp = exe + ".update";
+            if(!update_download_file(url, tmp)) { srv_say("download failed. check curl is available."); return; }
+            std::string umsg;
+            if(!update_apply_binary(tmp, exe, umsg)) { srv_say("update failed: " + umsg); return; }
+            srv_say(umsg);
+            if(do_restart) {
+                tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+                for(auto& c : clients) closesocket_cross(c.s);
+                clients.clear();
+                closesocket_cross(lsock);
+                execl(exe.c_str(), exe.c_str(), (char*)nullptr);
+                srv_say("execl failed — restart manually.");
+            } else {
+                running = false;
+            }
 #endif
             return;
         }

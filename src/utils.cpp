@@ -374,7 +374,7 @@ bool update_apply_binary(const std::string& downloaded, const std::string& exe_p
 #endif
 }
 
-std::string update_write_bat(const std::string& exe_path, bool is_server) {
+std::string update_write_bat(const std::string& exe_path, bool is_server, bool silent, bool auto_relaunch) {
 #ifdef _WIN32
     std::string dir;
     auto sep = exe_path.rfind('\\');
@@ -421,14 +421,13 @@ std::string update_write_bat(const std::string& exe_path, bool is_server) {
     f << "\r\n";
     f << "echo.\r\n";
     f << "echo " << display << " has been updated successfully.\r\n";
-    if(is_server) {
-        f << "set /p \"RELAUNCH=Relaunch server now? [Y/n]: \"\r\n";
-        f << "if \"!RELAUNCH!\"==\"\" set \"RELAUNCH=y\"\r\n";
-        f << "if /i \"!RELAUNCH!\"==\"y\" (\r\n";
-        f << "    start \"\" \"%EXE%\"\r\n";
-        f << ")\r\n";
+    if(silent) {
+        if(auto_relaunch) {
+            f << "start \"\" \"%EXE%\"\r\n";
+        }
     } else {
-        f << "set /p \"RELAUNCH=Relaunch client now? [Y/n]: \"\r\n";
+        std::string label = is_server ? "server" : "client";
+        f << "set /p \"RELAUNCH=Relaunch " << label << " now? [Y/n]: \"\r\n";
         f << "if \"!RELAUNCH!\"==\"\" set \"RELAUNCH=y\"\r\n";
         f << "if /i \"!RELAUNCH!\"==\"y\" (\r\n";
         f << "    start \"\" \"%EXE%\"\r\n";

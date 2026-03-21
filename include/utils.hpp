@@ -59,7 +59,9 @@ bool update_apply_binary(const std::string& downloaded_path,
                          const std::string& exe_path, std::string& msg);
 // Writes opicochat[client|server]updater.bat beside exe_path. Returns bat path or "".
 // The bat downloads the latest release from GitHub and replaces the binary.
+// silent=true: no relaunch prompt; auto_relaunch controls whether it relaunches.
 // Windows only; returns "" on other platforms.
-std::string update_write_bat(const std::string& exe_path, bool is_server);
+std::string update_write_bat(const std::string& exe_path, bool is_server,
+                             bool silent = false, bool auto_relaunch = false);
 // Launches a file in the background (Windows: start ""). No-op on other platforms.
 void update_launch_file(const std::string& path);

@@ -1,5 +1,8 @@
 # changelog
 
+## v3.8
+- **`/supdate stop|restart [force]`** (admin only) — silent one-shot update command. checks for a newer version, applies it non-interactively, then either shuts down or restarts the server. no prompts at any point. on Windows writes a batch file that auto-applies and optionally relaunches without the Y/n prompt. `force` skips the version check and reinstalls anyway. broadcasts a notice to all users before acting
+
 ## v3.7
 - **`/shutdown` and `/restart` as admin commands** — both can now be run by admins from the client (not just the server console). `/shutdown` and `/restart` broadcast a notice to all users before acting. on Windows `/restart` directs to `/restartserver` (in-process restart)
 
