@@ -225,6 +225,9 @@ key fields:
 | `/mod list` | list all mods |
 | `/stealth` | toggle stealth mode (invisible in list and chat; other admins see a grey `a`) |
 | `/reload bans\|admins\|mods\|config` | reload config files without restarting |
+| `/restartserver` | soft in-process restart: disconnect all clients, reload config/bans/staff |
+| `/restart` | hard restart: replace process in-place via `execl` (linux/macos). on windows directs to `/restartserver` |
+| `/shutdown` | stop the server (broadcasts a notice first) |
 | `/updatecheck` | check github for a newer server version and report status |
 | `/supdate stop [force]` | silent update: apply latest version non-interactively then shut down |
 | `/supdate restart [force]` | silent update: apply latest version non-interactively then restart |
@@ -240,7 +243,6 @@ extra console-only commands:
 | `/updateserver` | check github for a newer server version |
 | `/updateserver confirm` | download and apply the update (linux/macos: atomic replace; windows: launches `opicochatserverupdater.bat` then closes) |
 | `/updateserver force` | force update regardless of current version |
-| `/restart` | relaunch the server process in-place after an update (linux/macos only) |
 
 ---
 
